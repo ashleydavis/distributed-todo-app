@@ -1,0 +1,40 @@
+{
+  "name": "test-runner",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test-runner": "npx ts-node src/index.ts",
+    "create-tests": "npx ts-node src/create-tests.ts",
+    "test": "jest",
+    "test:watch": "jest --watchAll",
+    "compile": "tsc",
+    "c": "pnpm run compile"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/jest": "^29.5.12",
+    "@types/lodash": "^4.17.7",
+    "@types/minimist": "^1.2.5",
+    "@types/uuid": "^10.0.0",
+    "cross-env": "^7.0.3",
+    "expect": "^29.7.0",
+    "jest": "^29.7.0",
+    "kill-sync": "^1.0.3",
+    "minimist": "^1.2.8",
+    "node-dev": "^8.0.0",
+    "ts-jest": "^29.2.4",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.4",
+    "@types/json-stable-stringify": "^1.0.36"
+  },
+  "dependencies": {
+    "axios": "^1.7.3",
+    "chalk": "^4.1.2",
+    "fs-extra": "^11.2.0",
+    "json-stable-stringify": "^1.1.1",
+    "lodash": "^4.17.21",
+    "uuid": "^10.0.0",
+    "sync": "workspace:*"
+  }
+}

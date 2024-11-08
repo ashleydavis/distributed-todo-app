@@ -1,0 +1,29 @@
+{
+  "name": "sync",
+  "version": "1.0.0",
+  "description": "",
+  "main": "build/index.js",
+  "scripts": {
+    "compile": "tsc",
+    "compile:watch": "tsc --watch --preserveWatchOutput",
+    "test": "jest",
+    "test:watch": "jest --watchAll",
+    "t": "pnpm run test",
+    "tw": "pnpm run test:watch",
+    "c": "pnpm run compile",
+    "cw": "pnpm run compile:watch"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^22.8.6",
+    "@types/uuid": "^10.0.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.4",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "axios": "^1.7.3",
+    "json-stable-stringify": "^1.1.1",
+    "uuid": "^10.0.0"
+  }
+}

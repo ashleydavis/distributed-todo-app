@@ -1,0 +1,5 @@
+﻿node_modules
+.parcel-cache
+build
+coverage
+test-runs

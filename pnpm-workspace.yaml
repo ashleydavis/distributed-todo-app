@@ -1,0 +1,6 @@
+packages:
+  - "packages/*"
+  - "frontend"
+  - "broker"
+  - "node"
+  - "test-runner"
