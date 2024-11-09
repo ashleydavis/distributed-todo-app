@@ -136,10 +136,10 @@ app.post("/pull-blocks", (req, res) => {
 
     const { nodeId } = req.body;
 
-    console.log(`Node ${nodeId} is waiting for blocks.`);
+    // console.log(`Node ${nodeId} is waiting for blocks.`);
 
     if (pendingBlockRequests[nodeId]) {
-        console.log(`Node ${nodeId} is already waiting for blocks.`);
+        // console.log(`Node ${nodeId} is already waiting for blocks.`);
         res.json({ blocks: [], fromNodeId: "broker" });
         return;
     }
