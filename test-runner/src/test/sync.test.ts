@@ -20,11 +20,14 @@ describe("sync tests", () => {
 
         console.log(`Running test ${testRunId}`);
 
+        const outputPath = `./test-runs/${testRunId}`;
+        await fs.ensureDir(outputPath);
+
         let okToExit = false;
         const errors: any[] = [];
         const earlyExits: any[] = [];
 
-        const logFilePath = `./test-runs/${testRunId}/log.txt`;
+        const logFilePath = `${outputPath}/log.txt`;
         const broker = spawn(testRunId, 'broker', 'node', [ `-r`, `ts-node/register`, `src/broker.ts` ], {
                 PORT: brokerPort.toString(),
                 PATH: process.env.PATH,
@@ -50,7 +53,7 @@ describe("sync tests", () => {
                 NODE_ID: 'node-a',
                 MAX_GENERATION_TICKS: numGenerationRounds.toString(),
                 TICK_INTERVAL: roundTime.toString(),
-                OUTPUT_DIR: `./test-runs/${testRunId}/node-a`,
+                OUTPUT_DIR: `${outputPath}/node-a`,
                 BROKER_PORT: brokerPort.toString(),
                 PATH: process.env.PATH,
 
@@ -73,7 +76,7 @@ describe("sync tests", () => {
                 NODE_ID: 'node-b',
                 MAX_GENERATION_TICKS: numGenerationRounds.toString(),
                 TICK_INTERVAL: roundTime.toString(),
-                OUTPUT_DIR: `./test-runs/${testRunId}/node-b`,
+                OUTPUT_DIR: `${outputPath}/node-b`,
                 BROKER_PORT: brokerPort.toString(),
                 PATH: process.env.PATH,
 
