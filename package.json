@@ -4,6 +4,7 @@
   "description": "",
   "scripts": {
     "broker": "pnpm --filter broker run dev",
+    "frontend": "pnpm --filter frontend start",
     "compile": "pnpm --recursive run compile",
     "c": "pnpm run compile",
     "compile:watch": "pnpm run compile && pnpm --recursive --parallel --stream run compile:watch",
@@ -15,6 +16,9 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "buffer": "^5.5.0||^6.0.0",
+    "events": "^3.1.0",
+    "process": "^0.11.10",
     "stream-http": "^3.1.0",
     "url": "^0.11.0"
   }
