@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "test-runner": "npx ts-node src/index.ts",
+    "start": "npx ts-node src/index.ts",
     "create-tests": "npx ts-node src/create-tests.ts",
     "test": "jest",
     "test:watch": "jest --watchAll",

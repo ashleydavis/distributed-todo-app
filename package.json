@@ -5,6 +5,7 @@
   "scripts": {
     "broker": "pnpm --filter broker run dev",
     "frontend": "pnpm --filter frontend start",
+    "test-runner": "pnpm --filter test-runner start",
     "compile": "pnpm --recursive run compile",
     "c": "pnpm run compile",
     "compile:watch": "pnpm run compile && pnpm --recursive --parallel --stream run compile:watch",
