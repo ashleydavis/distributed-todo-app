@@ -13,6 +13,7 @@
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^29.5.12",
+    "@types/json-stable-stringify": "^1.0.36",
     "@types/lodash": "^4.17.7",
     "@types/minimist": "^1.2.5",
     "@types/uuid": "^10.0.0",
@@ -25,16 +26,16 @@
     "ts-jest": "^29.2.4",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.5.4",
-    "@types/json-stable-stringify": "^1.0.36"
+    "typescript": "^5.5.4"
   },
   "dependencies": {
     "axios": "^1.7.3",
     "chalk": "^4.1.2",
+    "fast-glob": "^3.3.2",
     "fs-extra": "^11.2.0",
     "json-stable-stringify": "^1.1.1",
     "lodash": "^4.17.21",
-    "uuid": "^10.0.0",
-    "sync": "workspace:*"
+    "sync": "workspace:*",
+    "uuid": "^10.0.0"
   }
 }

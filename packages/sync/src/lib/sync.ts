@@ -4,7 +4,7 @@ import { DatabaseUpdate } from "./database-update";
 //
 // The type of a function that can be called when database updates are received from other clients.
 //
-export type OnIncomingUpdatesFn = (updates: DatabaseUpdate[]) => void;
+export type OnIncomingUpdatesFn = (updates: DatabaseUpdate[]) => Promise<void>;
 
 //
 // The details of a node participating in the synchronization.
@@ -203,7 +203,7 @@ export async function receiveBlocks(
     blockGraph: BlockGraph<DatabaseUpdate[]>,
     pendingBlockMap: Map<string, IBlock<DatabaseUpdate[]>>,
     pullBlocks: () => Promise<IPullBlocksResponse>,
-    onReceiveUpdates: OnIncomingUpdatesFn
+    onIncomingUpdates: OnIncomingUpdatesFn
 ): Promise<void> {
 
     //
@@ -235,7 +235,7 @@ export async function receiveBlocks(
             }
 
             if (havePriors) {
-                await integrateBlock(pendingBlock, blockGraph, onReceiveUpdates);
+                await integrateBlock(pendingBlock, blockGraph, onIncomingUpdates);
                 pendingBlockMap.delete(pendingBlock.id);
                 changed = true;
             }
@@ -250,12 +250,8 @@ export async function receiveBlocks(
 async function integrateBlock(
     incomingBlock: IBlock<DatabaseUpdate[]>,
     blockGraph: BlockGraph<DatabaseUpdate[]>,
-    onReceiveUpdates: OnIncomingUpdatesFn
+    onIncomingUpdates: OnIncomingUpdatesFn
 ): Promise<void> {
-
-    if (onReceiveUpdates === undefined) {
-        throw new Error(`onReceiveUpdates is not set.`);
-    }
 
     //
     // Find all blocks that are in the range of the new block.
@@ -276,7 +272,7 @@ async function integrateBlock(
 
     localBlocks.push(incomingBlock);
 
-    blockGraph.integrateBlock(incomingBlock);
+    await blockGraph.integrateBlock(incomingBlock); //todo: Can this be done at the same time as onIncomingUpdates?
 
     //
     // Sort updates by timestamp so they are applied in order.
@@ -296,7 +292,7 @@ async function integrateBlock(
     //
     // Let the app handle the incoming updates.
     //
-    onReceiveUpdates(updates);
+    await onIncomingUpdates(updates);
 }
 
 //

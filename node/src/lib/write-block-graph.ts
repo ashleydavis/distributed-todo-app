@@ -16,27 +16,27 @@ export function writeBlockGraph<DataT = any>(blockGraph: BlockGraph<DataT>, outp
     //
     // To fix this I need to make it walk backwards from the head blocks.
     //
-    // let mermaid = "```mermaid\ngraph TD;\n";
+    let mermaid = "```mermaid\ngraph TD;\n";
 
-    // for (const block of blockNodes) {
-    //     const nextBlocks = block.nextBlocks.slice();
-    //     nextBlocks.sort((a, b) => a.block.id.localeCompare(b.block.id));
+    for (const block of blockNodes) {
+        const prevBlocks = block.prevBlocks.slice();
+        prevBlocks.sort((a, b) => a.localeCompare(b));
 
 
-    //     if (nextBlocks && nextBlocks.length > 0) {
-    //         for (const nextBlock of nextBlocks) {
-    //             mermaid += `${block.block.id.substring(0, 5)} --> ${nextBlock.block.id.substring(0, 5)};\n`;
-    //         }
-    //     }
-    //     else {
-    //         mermaid += `${block.block.id.substring(0, 5)};\n`;
-    //     }
-    // }
+        if (prevBlocks && prevBlocks.length > 0) {
+            for (const prevBlock of prevBlocks) {
+                mermaid += `${prevBlock.substring(0, 5)} --> ${block.id.substring(0, 5)};\n`;
+            }
+        }
+        else {
+            mermaid += `${block.id.substring(0, 5)};\n`;
+        }
+    }
 
-    // mermaid += "```";
+    mermaid += "```";
 
-    // //
-    // // Write a diagram of the blocks.
-    // //
-    // fs.writeFileSync(`${outputDir}/block-graph.md`, mermaid, { flush: true });
+    //
+    // Write a diagram of the blocks.
+    //
+    fs.writeFileSync(`${outputDir}/block-graph.md`, mermaid, { flush: true });
 }

@@ -36,105 +36,105 @@ const nullStorage: any = {
 
 describe("BlockGraph", () => {
     test("there are no head blocks for empty graph", () => {
-        const blockGraph = new BlockGraph(nullStorage);
+        const blockGraph = new BlockGraph<any>(nullStorage);
         expect(blockGraph.getHeadBlockIds()).toEqual([]);
     });
 
-    test("there is one head blocks for a single block", () => {
-        const blockGraph = new BlockGraph(nullStorage);
-        const block = blockGraph.commitBlock("data");
+    test("there is one head blocks for a single block", async () => {
+        const blockGraph = new BlockGraph<any>(nullStorage);
+        const block = await blockGraph.commitBlock("data");
         expect(blockGraph.getHeadBlockIds()).toEqual([block.id])
     });
 
     test("can add first block", async () => {
-        const blockGraph = new BlockGraph(nullStorage);
-        const block = blockGraph.commitBlock("data");
+        const blockGraph = new BlockGraph<any>(nullStorage);
+        const block = await blockGraph.commitBlock("data");
         expect(blockGraph.getHeadBlockIds()).toEqual([
             block.id,
         ]);
         expect(await blockGraph.hasBlock(block.id)).toBe(true);
     });
 
-    test("can add second block", () => {
-        const blockGraph = new BlockGraph(nullStorage);
-        const block1 = blockGraph.commitBlock("1");
-        const block2 = blockGraph.commitBlock("2");
+    test("can add second block", async () => {
+        const blockGraph = new BlockGraph<any>(nullStorage);
+        const block1 = await blockGraph.commitBlock("1");
+        const block2 = await blockGraph.commitBlock("2");
         expect(blockGraph.getHeadBlockIds()).toEqual([
             block2.id
         ]);
     });
 
-    test("can integrate two graphs, each with a separate block", () => {
-        const blockGraph1 = new BlockGraph(nullStorage);
-        const block1 = blockGraph1.commitBlock("1");
+    test("can integrate two graphs, each with a separate block", async () => {
+        const blockGraph1 = new BlockGraph<any>(nullStorage);
+        const block1 = await blockGraph1.commitBlock("1");
 
-        const blockGraph2 = new BlockGraph(nullStorage);
-        const block2 = blockGraph2.commitBlock("2");
+        const blockGraph2 = new BlockGraph<any>(nullStorage);
+        const block2 = await blockGraph2.commitBlock("2");
 
-        blockGraph1.integrateBlock(block2);
-        blockGraph2.integrateBlock(block1);
-
-        expectEqualGraphs(blockGraph1, blockGraph2);
-    });
-
-    test("can integrate two graphs, in the reverse order", () => {
-        const blockGraph1 = new BlockGraph(nullStorage);
-        const block1 = blockGraph1.commitBlock("1");
-
-        const blockGraph2 = new BlockGraph(nullStorage);
-        const block2 = blockGraph2.commitBlock("2");
-
-        blockGraph2.integrateBlock(block1);
-        blockGraph1.integrateBlock(block2);
+        await blockGraph1.integrateBlock(block2);
+        await blockGraph2.integrateBlock(block1);
 
         expectEqualGraphs(blockGraph1, blockGraph2);
     });
 
-    test("can integrate two graphs, ones has more blocks", () => {
-        const blockGraph1 = new BlockGraph(nullStorage);
-        const block1 = blockGraph1.commitBlock("1");
-        const block2 = blockGraph1.commitBlock("2");
+    test("can integrate two graphs, in the reverse order", async () => {
+        const blockGraph1 = new BlockGraph<any>(nullStorage);
+        const block1 = await blockGraph1.commitBlock("1");
 
-        const blockGraph2 = new BlockGraph(nullStorage);
-        const block3 = blockGraph2.commitBlock("3");
+        const blockGraph2 = new BlockGraph<any>(nullStorage);
+        const block2 = await blockGraph2.commitBlock("2");
 
-        blockGraph1.integrateBlock(block3);
-        blockGraph2.integrateBlock(block1);
-        blockGraph2.integrateBlock(block2);
+        await blockGraph2.integrateBlock(block1);
+        await blockGraph1.integrateBlock(block2);
 
         expectEqualGraphs(blockGraph1, blockGraph2);
     });
 
-    test("can integrate graphs and commit a new block", () => {
-        const blockGraph1 = new BlockGraph(nullStorage);
-        const block1 = blockGraph1.commitBlock("1");
+    test("can integrate two graphs, ones has more blocks", async () => {
+        const blockGraph1 = new BlockGraph<any>(nullStorage);
+        const block1 = await blockGraph1.commitBlock("1");
+        const block2 = await blockGraph1.commitBlock("2");
 
-        const blockGraph2 = new BlockGraph(nullStorage);
-        const block2 = blockGraph2.commitBlock("2");
+        const blockGraph2 = new BlockGraph<any>(nullStorage);
+        const block3 = await blockGraph2.commitBlock("3");
 
-        blockGraph1.integrateBlock(block2);
-        blockGraph2.integrateBlock(block1);
+        await blockGraph1.integrateBlock(block3);
+        await blockGraph2.integrateBlock(block1);
+        await blockGraph2.integrateBlock(block2);
 
-        const block3 = blockGraph1.commitBlock("3");
+        expectEqualGraphs(blockGraph1, blockGraph2);
+    });
+
+    test("can integrate graphs and commit a new block", async () => {
+        const blockGraph1 = new BlockGraph<any>(nullStorage);
+        const block1 = await blockGraph1.commitBlock("1");
+
+        const blockGraph2 = new BlockGraph<any>(nullStorage);
+        const block2 = await blockGraph2.commitBlock("2");
+
+        await blockGraph1.integrateBlock(block2);
+        await blockGraph2.integrateBlock(block1);
+
+        const block3 = await blockGraph1.commitBlock("3");
 
         expect(blockGraph1.getHeadBlockIds()).toEqual([
             block3.id
         ]);
     });
 
-    test("can integrate graphs, commit a new block, then reintegrate", () => {
-        const blockGraph1 = new BlockGraph(nullStorage);
-        const block1 = blockGraph1.commitBlock("1");
+    test("can integrate graphs, commit a new block, then reintegrate", async () => {
+        const blockGraph1 = new BlockGraph<any>(nullStorage);
+        const block1 = await blockGraph1.commitBlock("1");
 
-        const blockGraph2 = new BlockGraph(nullStorage);
-        const block2 = blockGraph2.commitBlock("2");
+        const blockGraph2 = new BlockGraph<any>(nullStorage);
+        const block2 = await blockGraph2.commitBlock("2");
 
-        blockGraph1.integrateBlock(block2);
-        blockGraph2.integrateBlock(block1);
+        await blockGraph1.integrateBlock(block2);
+        await blockGraph2.integrateBlock(block1);
 
-        const block3 = blockGraph1.commitBlock("3");
+        const block3 = await blockGraph1.commitBlock("3");
 
-        blockGraph2.integrateBlock(block3);
+        await blockGraph2.integrateBlock(block3);
 
         expectEqualGraphs(blockGraph1, blockGraph2);
     });

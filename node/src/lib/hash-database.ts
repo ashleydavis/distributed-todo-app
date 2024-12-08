@@ -6,11 +6,11 @@ import { Database } from "sync";
 // Create a hash of the database that can be used to determine if
 // two databases are the same.
 //
-export function hashDatabase(database: Database): string {
+export async function hashDatabase(database: Database): Promise<string> {
   const recordMap: any = {};
 
   for (const collection of database.collections) {
-      const records = collection.getAll().slice();
+      const records = (await collection.getAll()).slice();
       records.sort((a, b) => a.id.localeCompare(b.id));
       recordMap[collection.name()] = records;
   }

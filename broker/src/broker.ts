@@ -3,10 +3,18 @@ import { expect } from 'expect';
 import cors from 'cors';
 import { IBlock, ICheckInPayload, ICheckInResponse, INodeDetailsMap } from 'sync';
 
+declare global {
+    namespace Express {
+        interface Request {
+            userId?: string;
+        }
+    }
+}
+
 //
 // Blocks of data that are pushed from one node to another.
 //
-export interface IPushedData<DataT> {
+interface IPushedData<DataT> {
     //
     // Blocks being pushed.
     //
@@ -21,7 +29,7 @@ export interface IPushedData<DataT> {
 //
 // A pending block request from a node.
 //
-export interface IPendingBlockRequest {
+interface IPendingBlockRequest {
     //
     // The callback to call when the data is ready.
     //
@@ -31,7 +39,7 @@ export interface IPendingBlockRequest {
 //
 // Nodes that are waiting for data.
 //
-export interface IPendingBlockRequestMap {
+interface IPendingBlockRequestMap {
     [nodeId: string]: IPendingBlockRequest;
 }
 
@@ -66,19 +74,83 @@ app.use(cors());
 app.use(express.json());
 
 //
-// That node that is currenlty requesting data.
+// Records block requests from each node.
 //
-let pendingBlockRequests: IPendingBlockRequestMap = {};
+interface IBlockRequestMap {
+    [nodeId: string]: Set<string>;
+}
 
 //
-// Timestamps for latest data on each node.
+// Details for a particular user.
 //
-const nodeDetailsMap: INodeDetailsMap = {};
+interface IUserDetails {
+    //
+    // Latest details for each of the user's nodes.
+    //
+    nodes: INodeDetailsMap;
 
-const nodeBlockRequests: { [nodeId: string]: Set<string> } = {};
+    //
+    // Nodes that are currenlty waiting for blocks.
+    //
+    pullBlockRequests: IPendingBlockRequestMap;
 
+    //
+    // Block requests from nodes.
+    //
+    blockRequests: IBlockRequestMap;
+}
+
+//
+// Records the details for each separate user.
+//
+interface IUserDetailsMap {
+    [userId: string]: IUserDetails;    
+}
+
+//
+// Updated details for each connected user.
+//
+const userDetailsMap: IUserDetailsMap = {};
+
+//
+// Get's user details, lazily creating them if they don't exist.
+//
+function getUserDetails(userId: string): IUserDetails {
+    let userDetails = userDetailsMap[userId];
+    if (!userDetails) {
+        userDetails  = userDetailsMap[userId] = {
+            nodes: {},
+            pullBlockRequests: {},
+            blockRequests: {},
+        };
+    }
+
+    return userDetails;
+}
+
+//
+// NOTE: This is for testing purposes only.
+//       Not to be included in production code.
+//
 app.get("/status", (req, res) => {
-    res.json(nodeDetailsMap);
+    res.json(userDetailsMap);
+});
+
+//
+// Checks the header of requests for the user id.
+// 
+// NOTE: This should be replaced with a JWT for production use.
+//
+app.use((req, res, next) => {
+    const userId = req.headers["x-user-id"] as string;
+    if (!userId) {
+        res.sendStatus(401);
+        return;
+    }
+
+    req.userId = userId;
+
+    next();
 });
 
 //
@@ -91,12 +163,30 @@ app.post("/check-in", (req, res) => {
 
     debugger;
 
+    const userId = req.userId;
+    if (!userId) {
+        throw new Error("User is not identified.");
+    }
+
     const { nodeId, headBlocks, time, databaseHash, generatingData }: ICheckInPayload = req.body;
 
-    console.log(`Node ${nodeId} is checking in with head blocks:`);
-    console.log(`  ` + headBlocks.map(b => b.id).join("  \r\n"));
+    if (!nodeId) {
+        throw new Error("Node ID is required.");
+    }
 
-    nodeDetailsMap[nodeId] = {
+    if (!headBlocks) {
+        throw new Error("Head blocks are required.");
+    }
+
+    if (!time) {
+        throw new Error("Time is required.");
+    }
+
+    // console.log(`Node ${nodeId} is checking in with head blocks:`); 
+    // console.log(`  ` + headBlocks.map(b => b.id).join("  \r\n"));
+
+    let userDetails = getUserDetails(userId);
+    userDetails.nodes[nodeId] = {
         headBlocks,
         time,
         lastSeen: Date.now(),
@@ -105,22 +195,16 @@ app.post("/check-in", (req, res) => {
     };
 
     const data: ICheckInResponse = {
-        nodeDetails: nodeDetailsMap,
+        nodeDetails: userDetails.nodes,
     };
 
-    if (pendingBlockRequests) {
-        for (const nodeId of Object.keys(pendingBlockRequests)) {
-            // A node is waiting for blocks.
-            if (nodeBlockRequests[nodeId] !== undefined) {
-                // The node has advertised a requrest for block.
-                const requiredHashes = Array.from(nodeBlockRequests[nodeId]);
-                if (requiredHashes.length > 0) {
-                    if (data.wantsData === undefined) {
-                        data.wantsData = {};
-                    }
-                    data.wantsData[nodeId] = { requiredHashes };
-                }
+    for (const [nodeId, blockRequests] of Object.entries(userDetails.blockRequests)) {
+        if (blockRequests.size > 0) {
+            if (data.wantsData === undefined) {
+                data.wantsData = {};
             }
+
+            data.wantsData[nodeId] = { requiredHashes: Array.from(blockRequests) };
         }
     }
 
@@ -134,11 +218,20 @@ app.post("/pull-blocks", (req, res) => {
 
     debugger;
 
+    const userId = req.userId;
+    if (!userId) {
+        throw new Error("User is not identified.");
+    }
+
     const { nodeId } = req.body;
+    if (!nodeId) {
+        throw new Error("Node ID is required.");
+    }
 
     // console.log(`Node ${nodeId} is waiting for blocks.`);
 
-    if (pendingBlockRequests[nodeId]) {
+    let userDetails = getUserDetails(userId)
+    if (userDetails.pullBlockRequests[nodeId]) {
         // console.log(`Node ${nodeId} is already waiting for blocks.`);
         res.json({ blocks: [], fromNodeId: "broker" });
         return;
@@ -146,11 +239,11 @@ app.post("/pull-blocks", (req, res) => {
 
     const timeout = setTimeout(() => {
         // Timeout the long poll.
-        delete pendingBlockRequests[nodeId];
+        delete userDetails.pullBlockRequests[nodeId];
         res.json({ blocks: [], fromNodeId: "broker" });
     }, 2 * 60 * 1000);  // Timeout after 2 minutes. Can probably be shorter in production.
 
-    pendingBlockRequests[nodeId] = {
+    userDetails.pullBlockRequests[nodeId] = {
         callback: (data: IPushedData<any>) => {
             expect(data.fromNodeId).not.toBeUndefined();
 
@@ -159,10 +252,10 @@ app.post("/pull-blocks", (req, res) => {
 
             for (const block of data.blocks) {
                 // Remove the request because we are fullfilling it.
-                nodeBlockRequests[nodeId].delete(block.id);
+                userDetails.blockRequests[nodeId].delete(block.id);
             }
 
-            delete pendingBlockRequests[nodeId];
+            delete userDetails.pullBlockRequests[nodeId];
             res.json(data);
         },
     };
@@ -175,14 +268,25 @@ app.post("/push-blocks", (req, res) => {
 
     debugger;
 
+    const userId = req.userId;
+    if (!userId) {
+        throw new Error("User is not identified.");
+    }
+
     const { toNodeId, fromNodeId } = req.body;
 
-    expect(toNodeId).not.toBeUndefined();
-    expect(fromNodeId).not.toBeUndefined();
+    if (!toNodeId) {
+        throw new Error("To node ID is required.");
+    }
 
-    if (pendingBlockRequests[toNodeId]) {
+    if (!fromNodeId) {
+        throw new Error("From node ID is required.");
+    }
+
+    let userDetails = getUserDetails(userId);
+    if (userDetails.pullBlockRequests[toNodeId]) {
         console.log(`Pushing blocks from ${fromNodeId} to ${toNodeId}: ${req.body.blocks.map((b: IBlock<any>) => b.id).join(", ")}`);
-        pendingBlockRequests[toNodeId].callback(req.body);
+        userDetails.pullBlockRequests[toNodeId].callback(req.body);
     }
     else {
         console.log(`Node ${fromNodeId} has pushed blocks to ${toNodeId}. But ${toNodeId} is not waiting for blocks, it probably already received the blocks.`);
@@ -196,11 +300,25 @@ app.post("/push-blocks", (req, res) => {
 //
 app.post("/request-blocks", (req, res) => {
 
+    const userId = req.userId;
+    if (!userId) {
+        throw new Error("User is not identified.");
+    }
+
     const { nodeId, requiredHashes } = req.body;
+
+    if (!nodeId) {
+        throw new Error("Node ID is required.");
+    }
+
+    if (!requiredHashes) {
+        throw new Error("Required hashes are required.");
+    }
 
     console.log(`Node ${nodeId} is requesting blocks: ${requiredHashes}`);
 
-    nodeBlockRequests[nodeId] = new Set(requiredHashes);
+    let userDetails = getUserDetails(userId);
+    userDetails.blockRequests[nodeId] = new Set(requiredHashes);
 
     res.sendStatus(200);
 });
@@ -214,11 +332,18 @@ app.listen(port, () => {
 //
 setInterval(() => {
     const now = Date.now();
-    for (const [nodeId, nodeDetails] of Object.entries(nodeDetailsMap)) {
-        const nodeTimeoutMs = 20 * 1000;
-        if (now - nodeDetails.lastSeen > nodeTimeoutMs) {
-            console.log(`Node ${nodeId} has gone offline.`);
-            delete nodeDetailsMap[nodeId];
+    for (const [userId, userDetails] of Object.entries(userDetailsMap)) {
+        for (const [nodeId, nodeDetails] of Object.entries(userDetails.nodes)) {
+            const nodeTimeoutMs = 20 * 1000;
+            if (now - nodeDetails.lastSeen > nodeTimeoutMs) {
+                console.log(`Node ${nodeId} has gone offline.`);
+                delete userDetails.nodes[nodeId];
+            }
+        }
+
+        if (Object.keys(userDetails.nodes).length === 0) {
+            console.log(`User ${userId} has gone offline.`);
+            delete userDetailsMap[userId];
         }
     }
 });

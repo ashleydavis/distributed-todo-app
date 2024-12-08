@@ -119,7 +119,7 @@ export async function waitDone(testRunId: string, baseUrl: string, brokerPort: n
 
             try {
                 const response = await axios.get(`${baseUrl}:${brokerPort}/status`, { httpAgent: new http.Agent({ keepAlive: true }) });
-                data = response.data;
+                data = response.data['--test-user--'].nodes;
 
                 numStatusErrors = 0; // Resets the error count.
             }
@@ -181,7 +181,7 @@ export async function waitDone(testRunId: string, baseUrl: string, brokerPort: n
             function checkSynchronized() {
                 axios.get(`${baseUrl}:${brokerPort}/status`, { httpAgent: new http.Agent({ keepAlive: true }) })
                     .then(response => {
-                        const data: INodeDetailsMap = response.data;
+                        const data: INodeDetailsMap = response.data['--test-user--'].nodes;
                         fs.writeFileSync(`./test-runs/${testRunId}/test-status.json`, jsonStableStringify(data, { space: 2 }));
 
                         // Write ony the head hashes to a separate file.

@@ -134,7 +134,7 @@ export class BlockGraph<DataT> {
     //
     // Commits a new block to the graph.
     //
-    commitBlock(data: DataT): IBlock<DataT> {
+    async commitBlock(data: DataT): Promise<IBlock<DataT>> {
         const id = uuid();
         const prevBlocks = this.getHeadBlockIds();
         const block: IBlock<DataT> = {
@@ -145,9 +145,11 @@ export class BlockGraph<DataT> {
 
         this.headBlockIds = [ id ];
         this.blockMap.set(block.id, block);
-        
-        this.storeBlock(block);
-        this.storeHeadBlocks();
+
+        await Promise.all([
+            this.storeBlock(block),
+            this.storeHeadBlocks()
+        ]);
 
         return block;
     }
@@ -155,7 +157,7 @@ export class BlockGraph<DataT> {
     //
     // Integrates a block from another node into this graph.
     //
-    integrateBlock(block: IBlock<DataT>): void {
+    async integrateBlock(block: IBlock<DataT>): Promise<void> {
 
         if (this.blockMap.has(block.id)) {
             console.log(`Block ${block.id} already exists in the graph.`);
@@ -174,8 +176,10 @@ export class BlockGraph<DataT> {
 
         this.headBlockIds = Array.from(headNodes);
 
-        this.storeBlock(block);
-        this.storeHeadBlocks();
+        await Promise.all([
+            this.storeBlock(block),
+            this.storeHeadBlocks()
+        ]);
     }
 
     //
@@ -188,23 +192,15 @@ export class BlockGraph<DataT> {
     //
     // Write the block to storage.
     //
-    private storeBlock(block: IBlock<DataT>): void {
-        this.storage.storeRecord("blocks", block)
-            .catch(err => {
-                console.error(`Failed to store block or delete updates.:`);
-                console.error(err.stack || err.message || err);
-            });
+    private async storeBlock(block: IBlock<DataT>): Promise<void> {
+        await this.storage.storeRecord("blocks", block);
     }
 
     //
     // Write head is to storage.
     //
-    private storeHeadBlocks(): void {
+    private async storeHeadBlocks(): Promise<void> {
         //todo: Might be good if there was a uuid for a graph. Each graph can be for a particular set!
-        this.storage.storeRecord("block-graphs", { id: "head-blocks", headBlockIds: this.headBlockIds })
-            .catch(err => {
-                console.error(`Failed to store head blocks.:`);
-                console.error(err.stack || err.message || err);
-            });
+        await this.storage.storeRecord("block-graphs", { id: "head-blocks", headBlockIds: this.headBlockIds });
     }
 }

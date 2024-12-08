@@ -7,6 +7,7 @@ export { doCheckIn, receiveBlocks, ICheckInResponse, INodeDetailsMap, IPullBlock
 export { DatabaseUpdate, IDatabaseUpdate, IFieldUpdate, IDeleteUpdate } from "./lib/database-update";
 export * from "./lib/database";
 export * from "./lib/collection";
+export * from "./lib/document";
 export * from "./lib/storage";
 import http from 'http';
 import { DatabaseUpdate } from "./lib/database-update";
@@ -31,11 +32,12 @@ export class SyncEngine {
 
     constructor(
         private nodeId: string, 
+        private userId: string,
         private apiBaseUrl: string, 
         private onIncomingUpdates: OnIncomingUpdatesFn,
         private storage: IStorage,
         private tickInterval: number,
-        private annotateCheckInPayload?: (payload: ICheckInPayload) => ICheckInPayload
+        private annotateCheckInPayload?: (payload: ICheckInPayload) => Promise<ICheckInPayload>
         ) {        
     }
 
@@ -86,7 +88,7 @@ export class SyncEngine {
     //
     // Commit updates to the block graph.
     //
-    commitUpdates(updates: DatabaseUpdate[]): IBlock<DatabaseUpdate[]> {
+    commitUpdates(updates: DatabaseUpdate[]): Promise<IBlock<DatabaseUpdate[]>> {
         if (!this.blockGraph) {
             throw new Error(`Block graph not initialized.`);
         }
@@ -125,27 +127,48 @@ export class SyncEngine {
                 };
 
                 if (this.annotateCheckInPayload) {
-                    checkInPayload = this.annotateCheckInPayload(checkInPayload);
+                    checkInPayload = await this.annotateCheckInPayload(checkInPayload);
                 }
-                const response = await axios.post(`${this.apiBaseUrl}/check-in`, checkInPayload, { httpAgent: new http.Agent({ keepAlive: true }) });
+                const response = await axios.post(`${this.apiBaseUrl}/check-in`, checkInPayload, { 
+                    httpAgent: new http.Agent({ keepAlive: true }),
+                    headers: {
+                        'x-user-id': this.userId, //NOTE: To be replaced by a JWT for production use.
+                    },
+                });
                 return response.data;
             },
 
             // Push data
             async (toNodeId: string, blocks: IBlock<DatabaseUpdate[]>[]): Promise<void> => {
-                await axios.post(`${this.apiBaseUrl}/push-blocks`, {
-                    toNodeId,
-                    fromNodeId: this.nodeId,
-                    blocks,
-                }, { httpAgent: new http.Agent({ keepAlive: true }) });
+                await axios.post(`${this.apiBaseUrl}/push-blocks`, 
+                    {
+                        toNodeId,
+                        fromNodeId: this.nodeId,
+                        blocks,
+                    }, 
+                    { 
+                        httpAgent: new http.Agent({ keepAlive: true }),
+                        headers: {
+                            'x-user-id': this.userId, //NOTE: To be replaced by a JWT for production use.
+                        },    
+                    }
+                );
             },
 
             // Request blocks
             async (requiredHashes: string[]): Promise<void> => {
-                await axios.post(`${this.apiBaseUrl}/request-blocks`, {
-                    nodeId: this.nodeId,
-                    requiredHashes,
-                }, { httpAgent: new http.Agent({ keepAlive: true }) });
+                await axios.post(`${this.apiBaseUrl}/request-blocks`, 
+                    {
+                        nodeId: this.nodeId,
+                        requiredHashes,
+                    },
+                    { 
+                        httpAgent: new http.Agent({ keepAlive: true }),
+                        headers: {
+                            'x-user-id': this.userId, //NOTE: To be replaced by a JWT for production use.
+                        },    
+                    }
+                );
             },
         );
 
@@ -194,9 +217,17 @@ export class SyncEngine {
                     //
                     // We must pull blocks we don't have from the other node.
                     //
-                    const response = await axios.post(`${this.apiBaseUrl}/pull-blocks`, {
-                        nodeId: this.nodeId,
-                    }, { httpAgent: new http.Agent({ keepAlive: true }) });
+                    const response = await axios.post(`${this.apiBaseUrl}/pull-blocks`, 
+                        {
+                            nodeId: this.nodeId,
+                        },
+                        { 
+                            httpAgent: new http.Agent({ keepAlive: true }),
+                            headers: {
+                                'x-user-id': this.userId, //NOTE: To be replaced by a JWT for production use.
+                            },        
+                        }
+                    );
 
                     //
                     // Integrate the new blocks into the graph.

@@ -2,9 +2,8 @@ import axios from "axios";
 import fs from "fs-extra";
 import { makeSeed, Random } from './lib/random';
 import { writeBlockGraph } from './lib/write-block-graph';
-import { Database, DatabaseUpdate, SyncEngine } from "sync";
+import { IStorage, Database, DatabaseUpdate, SyncEngine } from "sync";
 import { v4 as uuid } from 'uuid';
-import { ITask } from "./lib/task";
 import { hashDatabase } from "./lib/hash-database";
 
 axios.defaults.timeout = 5 * 60 * 1000; // 5 mins. Only the long poll needs a long timeout, and it probably doesn't need to be this big in prod.
@@ -34,6 +33,7 @@ function getEnvVar(name: string, defaultValue?: any): string {
 }
 
 const nodeId = getEnvVar("NODE_ID");
+const userId = "--test-user--";
 const maxGenerationTicks = parseInt(getEnvVar("MAX_GENERATION_TICKS", "15"));
 const tickInterval = parseInt(getEnvVar("TICK_INTERVAL", "10000"));
 const outputDir = getEnvVar("OUTPUT_DIR", "./storage");
@@ -43,82 +43,114 @@ const brokerBaseUrl = `http://localhost:${brokerPort}`;
 
 fs.ensureDirSync(outputDir);
 
-const nullStorage = {
+class MemoryStorage implements IStorage {
+    records: any = [];
+
     async getAllRecords(collectionName: string) {
-        return [];
-    },
-    async getRecord() {
-        return undefined;
-    },
+        return this.records[collectionName] || [];
+    }
+
+    async getRecord(collectionName: string, recordId: string) {
+        if (this.records[collectionName] === undefined) {
+            return undefined;
+        }
+        return this.records[collectionName].find((record: any) => record.id === recordId);
+    }
+
     async storeRecord(collectionName: string, record: any) {
-    },
+
+        if (!this.records[collectionName]) {
+            this.records[collectionName] = [];
+        }
+
+        const index = this.records[collectionName].findIndex((r: any) => r.id === record.id);
+        if (index === -1) {
+            this.records[collectionName].push(record);
+        }
+        else {
+            this.records[collectionName][index] = record;
+        }
+    }
+
     async deleteRecord(collectionName: string, id: string) {
-    },
+        if (this.records[collectionName] === undefined) {
+            return;
+        }
+
+        const index = this.records[collectionName].findIndex((r: any) => r.id === id);
+        if (index !== -1) {
+            this.records[collectionName].splice(index);
+        }
+    }
+
     async deleteAllRecords(collectionName: string) {
+        this.records[collectionName] = [];
     }
 };
+
+const memoryStorage = new MemoryStorage();
 
 //
 // Called when incoming updates are received from other clients.
 //
-function onIncomingUpdates(updates: DatabaseUpdate[]): void {
+async function onIncomingUpdates(updates: DatabaseUpdate[]): Promise<void> {
 
     //
     // Apply incoming updates to the database.
     //
-    database.applyIncomingUpdates(updates);
+    await database.applyIncomingUpdates(updates);
 
-    fs.appendFileSync(`${outputDir}/updates.json`, JSON.stringify({
-        time: Date.now(),
-        direction: "incoming",
-        round,
-        updates,
-        records: database.collection<ITask>("tasks").getAll().slice().sort((a, b) => a.id.localeCompare(b.id)),
-        databaseHash: hashDatabase(database),
-        headBlocks: syncEngine.getBlockGraph().getHeadBlockIds(),
-    }, null, 2) + "\n===\n", { flush: true });
+    // fs.appendFileSync(`${outputDir}/updates.json`, JSON.stringify({
+    //     time: Date.now(),
+    //     direction: "incoming",
+    //     round,
+    //     updates,
+    //     records: database.collection("tasks").getAll().slice().sort((a, b) => a.id.localeCompare(b.id)),
+    //     databaseHash: hashDatabase(database),
+    //     headBlocks: syncEngine.getBlockGraph().getHeadBlockIds(),
+    // }, null, 2) + "\n===\n", { flush: true });
 
     //
     // For testing, check that the database is consistent with the entire history.
     //
-    checkDatabaseConsistency();
+    await checkDatabaseConsistency();
 }
 
 //
 // Called when updates are outgoing to other clients.
 //
-function onOutgoingUpdates(updates: DatabaseUpdate[]): void {
+async function onOutgoingUpdates(updates: DatabaseUpdate[]): Promise<void> {
     //
     // Queue outgoing updates to send to other clients.
     //
-    syncEngine.commitUpdates(updates)
+    await syncEngine.commitUpdates(updates)
 
     //
     // For testing, check that the database is consistent with the entire history.
     //
-    checkDatabaseConsistency();
+    await checkDatabaseConsistency();
 
-    fs.appendFileSync(`${outputDir}/updates.json`, JSON.stringify({
-        time: Date.now(),
-        direction: "outgoing",
-        round,
-        updates,
-        records: database.collection<ITask>("tasks").getAll().slice().sort((a, b) => a.id.localeCompare(b.id)),
-        databaseHash: hashDatabase(database),
-        headBlocks: syncEngine.getBlockGraph().getHeadBlockIds(),
-    }, null, 2) + "\n===\n", { flush: true });
+    // fs.appendFileSync(`${outputDir}/updates.json`, JSON.stringify({
+    //     time: Date.now(),
+    //     direction: "outgoing",
+    //     round,
+    //     updates,
+    //     records: database.collection("tasks").getAll().slice().sort((a, b) => a.id.localeCompare(b.id)),
+    //     databaseHash: hashDatabase(database),
+    //     headBlocks: syncEngine.getBlockGraph().getHeadBlockIds(),
+    // }, null, 2) + "\n===\n", { flush: true });
 }
 
 //
 // The synchronization engine is responsible for managing the block graph and the synchronization of database updates.
 //
-const syncEngine = new SyncEngine(nodeId, brokerBaseUrl, onIncomingUpdates, nullStorage, tickInterval, payload => {
+const syncEngine = new SyncEngine(nodeId, userId, brokerBaseUrl, onIncomingUpdates, memoryStorage, tickInterval, async (payload) => {
     return {
         ...payload,
         //
         // For the testing framework.
         //
-        databaseHash: hashDatabase(database),
+        databaseHash: await hashDatabase(database),
         generatingData: round <= maxGenerationTicks,
     };
 });
@@ -126,8 +158,8 @@ const syncEngine = new SyncEngine(nodeId, brokerBaseUrl, onIncomingUpdates, null
 //
 // The current state of the database.
 //
-const database = new Database(nullStorage, onOutgoingUpdates);
-database.collection<ITask>("tasks");
+const database = new Database(memoryStorage, onOutgoingUpdates);
+database.collection("tasks"); //todo: Shouldn't have to have this!
 
 fs.removeSync(`${outputDir}/events.json`);
 fs.removeSync(`${outputDir}/updates.json`);
@@ -148,13 +180,13 @@ const random = new Random(randomSeed);
 fs.appendFileSync(`${outputDir}/events.json`, JSON.stringify({ time: Date.now(), type: "seed", randomSeed }, null, 2) + "\n===\n", { flush: true });
 
 function writeState() {
-    fs.writeFileSync(`${outputDir}/state.json`, JSON.stringify({
-        time: Date.now(),
-        round: round,
-        databaseHash: hashDatabase(database),
-        records: database.collection<ITask>("tasks").getAll().slice().sort((a, b) => a.id.localeCompare(b.id)),
-        headBlocks: syncEngine.getBlockGraph().getHeadBlockIds(),
-    }, null, 2), { flush: true });
+    // fs.writeFileSync(`${outputDir}/state.json`, JSON.stringify({
+    //     time: Date.now(),
+    //     round: round,
+    //     databaseHash: hashDatabase(database),
+    //     records: database.collection("tasks").getAll().slice().sort((a, b) => a.id.localeCompare(b.id)),
+    //     headBlocks: syncEngine.getBlockGraph().getHeadBlockIds(),
+    // }, null, 2), { flush: true });
 
     //
     // Writes the state round by round:
@@ -192,7 +224,7 @@ async function generateRandomUpdates(round: number): Promise<void> {
         console.log(`----- Node ${nodeId} is in generation tick ${round}`);
     }
 
-    const records = database.collection<ITask>("tasks").getAll()
+    const records = await database.collection("tasks").getAll()
     if (records.length > 0 && random.getRand() > 0.6) {
         //
         // Makes an update to a todo.
@@ -201,11 +233,11 @@ async function generateRandomUpdates(round: number): Promise<void> {
             //
             // Make a random todo completed.
             //
-            const randomItem = records[Math.floor(random.getRand() * records.length)];
+            const randomItem: any = records[Math.floor(random.getRand() * records.length)];
 
             numUpdates += 1;
 
-            database.collection("tasks").upsertOne(randomItem.id, { completed: !randomItem.completed });
+            await database.collection("tasks").upsertOne(randomItem.id, { completed: !randomItem.completed });
         }
         else {
             //
@@ -215,7 +247,7 @@ async function generateRandomUpdates(round: number): Promise<void> {
 
             numUpdates += 1;
 
-            database.collection("tasks").upsertOne(randomItem.id, {
+            await database.collection("tasks").upsertOne(randomItem.id, {
                 text: `Random todo ${Math.floor(random.getRand() * 1000)}`,
             });
         }
@@ -228,7 +260,7 @@ async function generateRandomUpdates(round: number): Promise<void> {
 
         numUpdates += 1;
 
-        database.collection("tasks").upsertOne(newRecordId, {
+        await database.collection("tasks").upsertOne(newRecordId, {
             text: `Random todo ${Math.floor(random.getRand() * 1000)}`,
             completed: false,
         });
@@ -271,29 +303,28 @@ async function runGenerationLoop(): Promise<void> {
 //
 // Checks the database consistency and aborts the node if it's not consistent.
 //
-function checkDatabaseConsistency() {
-    const checkDatabase = new Database(nullStorage, () => {});
-    checkDatabase.collection<ITask>("tasks"); //todo: It's a bit awkward.
+async function checkDatabaseConsistency() {
+    const checkDatabase = new Database(memoryStorage, async () => {});
 
     let allUpdates: DatabaseUpdate[] = [];
     for (const block of syncEngine.getBlockGraph().getLoadedBlocks()) {
         allUpdates = allUpdates.concat(block.data);
     }
     allUpdates.sort((a, b) => a.timestamp - b.timestamp);
-    checkDatabase.applyIncomingUpdates(allUpdates);
+    await checkDatabase.applyIncomingUpdates(allUpdates);
 
     writeState();
 
-    const databaseHash = hashDatabase(database);
-    const checkDatabaseHash = hashDatabase(checkDatabase);
+    const databaseHash = await hashDatabase(database);
+    const checkDatabaseHash = await hashDatabase(checkDatabase);
     if (databaseHash !== checkDatabaseHash) {
         console.error(`Database hashes do not match!`);
         console.error(`Local database hash: ${databaseHash}`);
         console.error(`Check database hash: ${checkDatabaseHash}`);
         console.error(`Local records:`);
-        console.error(database.collection<ITask>("tasks").getAll().slice().sort((a, b) => a.id.localeCompare(b.id)));
+        // console.error(database.collection("tasks").getAll().slice().sort((a, b) => a.id.localeCompare(b.id)));  //todo: Be good to make this work with all collections.
         console.error(`Check records:`);
-        console.error(checkDatabase.collection<ITask>("tasks").getAll().slice().sort((a, b) => a.id.localeCompare(b.id)));
+        // console.error(checkDatabase.collection("tasks").getAll().slice().sort((a, b) => a.id.localeCompare(b.id)));
         process.exit(1);
     }
 }

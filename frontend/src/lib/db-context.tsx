@@ -1,5 +1,5 @@
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from "react";
-import { SyncEngine, DatabaseUpdate, Database, ISubscription } from "sync";
+import { SyncEngine, DatabaseUpdate, Database, ICollection, IDocument } from "sync";
 import { IIndexeddbDatabaseConfiguration, openDatabase, deleteRecord as _deleteRecord } from "./indexeddb";
 import { v4 as uuid } from "uuid";
 import { IndexeddbStorage } from "./indexeddb-storage";
@@ -10,78 +10,29 @@ if (!API_BASE_URL) {
 }
 
 //
-// A database record.
+// Hook to access the database.
 //
-export interface IRecord {
+export interface IDatabaseHook {
     //
-    // The unique id of the record.
+    // The database.
     //
-    id: string;
-}
-
-//
-// Defines a task.
-//
-export interface ITask extends IRecord {
-    //
-    // The timestamp when the task was created.
-    //
-    timestamp: number;
+    database?: Database;
 
     //
-    // The description of the task.
+    // Set to true when the database is loaded.
     //
-    description: string;
+    loaded: boolean;
 
     //
-    // Whether the task is completed.
+    // The user id.
     //
-    completed: boolean;
+    userId: string;
 
     //
-    // The id of the project the task belongs to.
+    // Changes to a different user.
+    // Simulates logging out and logging in.
     //
-    projectId?: string;
-}
-
-//
-// Defines a project.
-//
-export interface IProject extends IRecord {
-    //
-    // The name of the project.
-    //
-    name: string;
-}
-
-//
-// Client-side interface to the task database.
-//
-export interface IDatabase {
-    //
-    // The list of tasks in the database.
-    //
-    tasks: ITask[];
-
-    //
-    // The list of projects in the database.
-    //
-    projects: IProject[];
-
-    //
-    // Deletes a task.
-    //
-    deleteTask(id: string): void;
-
-    //
-    // Inserts or updates a task.
-    //
-    upsertTask(id: string, task: Partial<ITask>): void;
-
-    //
-    // Inserts or updates a project.
-    //
-    upsertProject(project: IProject): void;
+    changeUser: (userId: string) => void;
 }
 
 //
@@ -119,7 +70,7 @@ const blockGraphDatabaseConfiguration: IIndexeddbDatabaseConfiguration = {
 }
 
 
-const DatabaseContext = createContext<IDatabase | undefined>(undefined);
+const DatabaseContext = createContext<IDatabaseHook | undefined>(undefined);
 
 export interface IProps {
     children: ReactNode | ReactNode[];
@@ -128,9 +79,10 @@ export interface IProps {
 export function DatabaseContextProvider({ children }: IProps) {
 
     //
-    // The indexed db database.
+    // The indexed db databases.
     //
-    const indexeddbRefs = useRef<IDBDatabase[]>([]);
+    const tasksDbRef = useRef<IDBDatabase | undefined>(undefined);
+    const blockGraphDbRef = useRef<IDBDatabase | undefined>(undefined);
 
     //
     // Reference to the database.
@@ -143,100 +95,62 @@ export function DatabaseContextProvider({ children }: IProps) {
     const syncEngineRef = useRef<SyncEngine | undefined>(undefined);
 
     //
-    // The list of tasks in the database.
+    // Eventually this must be passed to the server as a JWT form the auth system.
     //
-    const [tasks, setTasks] = useState<ITask[]>([]);
+    const [userId, setUserId] = useState<string>("user-1");
 
     //
-    // The list of projects in the database.
+    // Changes to a different user.
+    // Simulates logging out and logging in.
     //
-    const [projects, setProjects] = useState<IProject[]>([]);
-
-    //
-    // Deletes a task.
-    //
-    function deleteTask(id: string): void {
-        if (!databaseRef.current) {
-            throw new Error(`Database is not open.`);
-        }
-
-        databaseRef.current.collection("tasks").deleteOne(id);
+    function changeUser(userId: string): void {
+        setUserId(userId);
     }
 
+    // Set to true when the database is loaded.
     //
-    // Inserts or updates a task.
-    //
-    function upsertTask(id: string, task: Omit<Partial<ITask>, "id">): void {
-        if (!databaseRef.current) {
-            throw new Error(`Database is not open.`);
-        }
-
-        databaseRef.current.collection("tasks").upsertOne(id, task);
-    }
-
-    //
-    // Inserts or updates a project.
-    //
-    function upsertProject(project: IProject): void {
-        if (!databaseRef.current) {
-            throw new Error(`Database is not open.`);
-        }
-
-        databaseRef.current.collection("projects").upsertOne(project.id, project);
-    }
+    const [loaded, setLoaded] = useState(false);
 
     //
     // Receives updates from other clients and applies them to the database.
     //
-    function onIncomingUpdates(updates: DatabaseUpdate[]): void {
+    async function onIncomingUpdates(updates: DatabaseUpdate[]): Promise<void> {
         if (!databaseRef.current) {
             throw new Error(`Database is not open.`);
         }
 
-        databaseRef.current.applyIncomingUpdates(updates);
+        await databaseRef.current.applyIncomingUpdates(updates);
     }
 
     //
     // Routes outgoing updates from the database to the synchronization engine.
     //
-    function onOutgoingUpdates(updates: DatabaseUpdate[]): void {
+    async function onOutgoingUpdates(updates: DatabaseUpdate[]): Promise<void> {
         if (!syncEngineRef.current) {
             throw new Error(`Synchronization engine is not created!`);
         }
 
-        syncEngineRef.current.commitUpdates(updates);
+        await syncEngineRef.current.commitUpdates(updates);
     }
 
     useEffect(() => {
 
-        let tasksSubscription: ISubscription;
-        let projectsSubscription: ISubscription;
-
         let nodeId = uuid();
 
+        console.log(`Starting the sync engine for user ${userId} and node ${nodeId}`);
+
         Promise.all([
-                openDatabase("tasks-db", tasksDatabaseConfiguration),
-                openDatabase("block-graph", blockGraphDatabaseConfiguration)
+                openDatabase(`tasks-db-${userId}`, tasksDatabaseConfiguration),
+                openDatabase(`block-graph-${userId}`, blockGraphDatabaseConfiguration)
             ])
             .then(([tasksDb, blockGraphDb]) => {
                 const database = new Database(new IndexeddbStorage(tasksDb), onOutgoingUpdates);
-                const tasks = database.collection<ITask>("tasks");
-                const projects = database.collection<IProject>("projects");
-
-                indexeddbRefs.current = [tasksDb, blockGraphDb];
+                tasksDbRef.current = tasksDb;
+                blockGraphDbRef.current = blockGraphDb;
                 databaseRef.current = database;
+                setLoaded(true);
 
-                tasksSubscription = tasks.subscribe(tasks => {
-                    const sortedTask = [...tasks];
-                    sortedTask.sort((a, b) => a.timestamp - b.timestamp); //todo: Really this only needs to happen when loaded from the db.
-                    setTasks(sortedTask);
-                });
-
-                projectsSubscription = projects.subscribe(projects => {
-                    setProjects(projects);
-                });
-
-                syncEngineRef.current = new SyncEngine(nodeId, API_BASE_URL, onIncomingUpdates, new IndexeddbStorage(blockGraphDb), 1000);
+                syncEngineRef.current = new SyncEngine(nodeId, userId, API_BASE_URL, onIncomingUpdates, new IndexeddbStorage(blockGraphDb), 1000);
                 return syncEngineRef.current.startSync();
             })
             .catch(error => {
@@ -245,6 +159,8 @@ export function DatabaseContextProvider({ children }: IProps) {
             });
 
         return () => {
+            console.log(`Stopping the sync engine for user ${userId} and node ${nodeId}`);
+            setLoaded(false);
 
             //
             // Stop the synchronization engine.
@@ -254,29 +170,25 @@ export function DatabaseContextProvider({ children }: IProps) {
                 syncEngineRef.current = undefined;
             }
 
-            for (const indexeddb of indexeddbRefs.current) {
-                indexeddb.close();
+            if (tasksDbRef.current) {
+                tasksDbRef.current.close();
+                tasksDbRef.current = undefined;
             }
 
-            indexeddbRefs.current = [];
+            if (blockGraphDbRef.current) {
+                blockGraphDbRef.current.close();
+                blockGraphDbRef.current = undefined;
+            }
+
             databaseRef.current = undefined;
-
-            if (tasksSubscription) {
-                tasksSubscription.unsubscribe();
-            }
-
-            if (projectsSubscription) {
-                projectsSubscription.unsubscribe();
-            }
         };
-    }, []);
+    }, [userId]);
 
-    const value: IDatabase = {
-        tasks,
-        projects,
-        deleteTask,
-        upsertTask,
-        upsertProject,
+    const value: IDatabaseHook = {
+        database: databaseRef.current,
+        userId,
+        changeUser,
+        loaded,
     };
 
     return (
@@ -287,9 +199,9 @@ export function DatabaseContextProvider({ children }: IProps) {
 }
 
 //
-// Use the daatabase context in a component.
+// Hook to access the database.
 //
-export function useDatabase(): IDatabase {
+export function useDatabase(): IDatabaseHook {
     const context = useContext(DatabaseContext);
     if (!context) {
         throw new Error(`Database context is not set! Add DatabaseContextProvider to the component tree.`);
@@ -297,3 +209,202 @@ export function useDatabase(): IDatabase {
     return context;
 }
 
+export interface ICollectionHook<T extends IDocument> {
+    //
+    // Set to true when the database is loaded.
+    //
+    loaded: boolean;
+
+    //
+    // The database collection.
+    //
+    collection: ICollection<T>;
+}
+
+//
+// Hook to access a collection of documents.
+//
+export function useCollection<T extends IDocument>(collectionName: string): ICollectionHook<T> {
+    const { database, loaded } = useDatabase();
+    return {
+        loaded,
+        collection: {
+            name: () => collectionName,
+            getAll: () => {
+                if (!database) {
+                    throw new Error(`Database is not open.`);
+                }
+                return database.collection<T>(collectionName).getAll();
+            },
+            getOne: (id: string) => {
+                if (!database) {
+                    throw new Error(`Database is not open.`);
+                }
+                return database.collection<T>(collectionName).getOne(id);
+            },
+            deleteOne: (id: string) => {
+                if (!database) {
+                    throw new Error(`Database is not open.`);
+                }
+                return database.collection<T>(collectionName).deleteOne(id);
+            },
+            upsertOne: (id: string, record: Omit<T, "id">) => {
+                if (!database) {
+                    throw new Error(`Database is not open.`);
+                }
+                return database.collection<T>(collectionName).upsertOne(id, record);
+            },
+            subscribe: (callback) => {
+                if (!database) {
+                    throw new Error(`Database is not open.`);
+                }
+                return database.collection<T>(collectionName).subscribe(callback);
+            },
+        }
+    };
+}
+
+//
+// Function to transform a collection of records.
+//
+export type TransformFn<T extends IDocument> = (documents: T[]) => T[];
+
+//
+// Options for the query.
+//
+export interface IQueryOptions<T extends IDocument> {
+    //
+    // Function to transform the documents before they are set in state.
+    //
+    transform?: TransformFn<T>;
+}
+
+//
+// Hook to access a collection of documents.
+//
+export function useQuery<T extends IDocument>(collectionName: string, options?: IQueryOptions<T>): { documents: T[] } {
+    
+    const { collection, loaded } = useCollection<T>(collectionName);
+    const [ documents, setDocuments ] = useState<T[]>([]);
+
+    useEffect(() => {
+        if (!loaded) {
+            return;
+        }
+
+        collection.getAll()
+            .then((documents) => {
+                if (options?.transform) {
+                    documents = options.transform(documents);
+                }
+                setDocuments(documents);
+            });
+    }, [loaded]);
+
+    useEffect(() => {
+        if (!loaded) {
+            return;
+        }
+
+        //
+        // Subscribe to changes to the collection and update the query.
+        //
+        const subscription = collection.subscribe((updates) => {
+            let working = documents.slice(); 
+
+            //
+            // Apply the updates to the documents in state.
+            //
+            for (const update of updates) {
+                if (update.type === "field") {
+                    let documentIndex = working.findIndex(document => document.id === update.recordId); //todo: Could be a fast lookup.
+                    if (documentIndex === -1) {                   
+                        //
+                        // Creates the document.
+                        //
+                        const record: any = {
+                            id: update.recordId,
+                            [update.field]: update.value,
+                        };
+                        working.push(record);
+                    }
+                    else {
+                        //
+                        // Updates the document.
+                        //
+                        (working[documentIndex] as any)[update.field] = update.value;
+                    }                }
+                else if (update.type === "delete") {
+                    const deleteIndex = working.findIndex(document => document.id === update.recordId); //todo: Could be a fast lookup.
+                    if (deleteIndex !== -1) {
+                        working.splice(deleteIndex, 1);
+                    }
+                }
+            }
+
+            if (options?.transform) {
+                working = options.transform(working);
+            }
+            setDocuments(working);
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+
+    }, [loaded, documents]);
+
+    return { documents };
+}
+
+//
+// Hook to access a single document.
+//
+export function useDocumentQuery<T extends IDocument>(collectionName: string, recordId: string) {
+    const { collection, loaded } = useCollection<T>(collectionName);
+    const [document, setDocument] = useState<T | undefined>(undefined);
+    
+    useEffect(() => {
+        if (!loaded) {
+            return;
+        }
+
+        collection.getOne(recordId)
+            .then((document) => {
+                setDocument(document);
+            });
+
+        //
+        // Subscribe to changes to the document.
+        //
+        const subscription = collection.subscribe((updates) => {
+            let working: any = undefined;
+
+            for (const update of updates) {
+                if (update.recordId === recordId) {
+                    if (update.type === "delete") {
+                        setDocument(undefined);
+                        break;
+                    }
+                    else if (update.type === "field") {
+                        if (!working) {
+                            working = { ...document };
+                        }
+                        working[update.field] = update.value;
+                    }
+                }
+            }
+
+            if (working) {
+                setDocument(working);
+            }
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+
+    }, [loaded, recordId]);
+
+    return { document };
+}

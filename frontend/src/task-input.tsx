@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { useDatabase } from './lib/db-context';
 import { v4 as uuid } from 'uuid';
+import { useCollection } from './lib/db-context';
+import { ITask } from './defs/task';
 
 export function TaskInput() {
     
     const [ text, setText] = useState('');
-    const { upsertTask } = useDatabase();
+    
+    const { collection: tasksCollection } = useCollection<ITask>("tasks");
     
     async function addNewTask(description: string) {
         const newTask = {
@@ -13,7 +15,7 @@ export function TaskInput() {
             description,
             completed: false,
         };
-        await upsertTask(uuid(), newTask);
+        await tasksCollection.upsertOne(uuid(), newTask);
     }
 
     function onTextChange(e: React.ChangeEvent<HTMLInputElement>) {
