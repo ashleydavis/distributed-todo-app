@@ -6,6 +6,12 @@ import { IStorage, Database, DatabaseUpdate, SyncEngine } from "sync";
 import { v4 as uuid } from 'uuid';
 import { hashDatabase } from "./lib/hash-database";
 
+interface ITask { 
+    _id: string;
+    text: string;
+    completed: boolean;
+ }
+
 axios.defaults.timeout = 5 * 60 * 1000; // 5 mins. Only the long poll needs a long timeout, and it probably doesn't need to be this big in prod.
 
 process.on('uncaughtException', (err) => {
@@ -54,7 +60,7 @@ class MemoryStorage implements IStorage {
         if (this.records[collectionName] === undefined) {
             return undefined;
         }
-        return this.records[collectionName].find((record: any) => record.id === recordId);
+        return this.records[collectionName].find((record: any) => record._id === recordId);
     }
 
     async storeRecord(collectionName: string, record: any) {
@@ -63,7 +69,7 @@ class MemoryStorage implements IStorage {
             this.records[collectionName] = [];
         }
 
-        const index = this.records[collectionName].findIndex((r: any) => r.id === record.id);
+        const index = this.records[collectionName].findIndex((r: any) => r._id === record._id);
         if (index === -1) {
             this.records[collectionName].push(record);
         }
@@ -77,7 +83,7 @@ class MemoryStorage implements IStorage {
             return;
         }
 
-        const index = this.records[collectionName].findIndex((r: any) => r.id === id);
+        const index = this.records[collectionName].findIndex((r: any) => r._id === id);
         if (index !== -1) {
             this.records[collectionName].splice(index);
         }
@@ -224,7 +230,7 @@ async function generateRandomUpdates(round: number): Promise<void> {
         console.log(`----- Node ${nodeId} is in generation tick ${round}`);
     }
 
-    const records = await database.collection("tasks").getAll()
+    const records = await database.collection<ITask>("tasks").getAll()
     if (records.length > 0 && random.getRand() > 0.6) {
         //
         // Makes an update to a todo.
@@ -233,11 +239,11 @@ async function generateRandomUpdates(round: number): Promise<void> {
             //
             // Make a random todo completed.
             //
-            const randomItem: any = records[Math.floor(random.getRand() * records.length)];
+            const randomItem = records[Math.floor(random.getRand() * records.length)];
 
             numUpdates += 1;
 
-            await database.collection("tasks").upsertOne(randomItem.id, { completed: !randomItem.completed });
+            await database.collection("tasks").upsertOne(randomItem._id, { completed: !randomItem.completed });
         }
         else {
             //
@@ -247,7 +253,7 @@ async function generateRandomUpdates(round: number): Promise<void> {
 
             numUpdates += 1;
 
-            await database.collection("tasks").upsertOne(randomItem.id, {
+            await database.collection("tasks").upsertOne(randomItem._id, {
                 text: `Random todo ${Math.floor(random.getRand() * 1000)}`,
             });
         }

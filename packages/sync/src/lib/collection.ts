@@ -41,7 +41,7 @@ export interface ICollection<RecordT extends IDocument> {
     //
     // Upserts a record in the database.
     //
-    upsertOne(recordId: string, update: Omit<Partial<RecordT>, "id">): Promise<void>;
+    upsertOne(recordId: string, update: Omit<Partial<RecordT>, "_id">): Promise<void>;
 
     //
     // Deletes a record from the database.
@@ -91,9 +91,9 @@ export class Collection<RecordT extends IDocument> implements ICollection<Record
     //
     // Upserts a record in the database.
     //
-    async upsertOne(recordId: string, update: Omit<Partial<RecordT>, "id">): Promise<void> {
+    async upsertOne(recordId: string, update: Omit<Partial<RecordT>, "_id">): Promise<void> {
         const updates: DatabaseUpdate[] = Object.keys(update)
-            .filter(field => field !== 'id')
+            .filter(field => field !== '_id')
             .map(field => {
                 return {
                     type: "field",
@@ -126,7 +126,7 @@ export class Collection<RecordT extends IDocument> implements ICollection<Record
         let record = await this.storage.getRecord<RecordT>(this.collectionName, recordId); 
         if (!record) {
             record = {
-                id: recordId,
+                _id: recordId,
                 ...update
             } as RecordT;
         }
@@ -185,7 +185,7 @@ export class Collection<RecordT extends IDocument> implements ICollection<Record
                 let record = await this.storage.getRecord<RecordT>(this.collectionName, update.recordId);
                 if (!record) {
                     record = {
-                        id: update.recordId,
+                        _id: update.recordId,
                         [update.field]: update.value,
                     } as any;
                 }
@@ -196,7 +196,7 @@ export class Collection<RecordT extends IDocument> implements ICollection<Record
                     };
                 }
 
-                await this.storage.storeRecord(this.collectionName, record);
+                await this.storage.storeRecord(this.collectionName, record!);
             }
             else if (update.type === 'delete') {                
                 //

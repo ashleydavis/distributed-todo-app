@@ -11,7 +11,7 @@ export function writeBlockGraph<DataT = any>(blockGraph: BlockGraph<DataT>, outp
     fs.writeFileSync(`${outputDir}/block-graph.json`, JSON.stringify(blockGraph.getLoadedBlocks(), null, 2), { flush: true });
 
     const blockNodes = Array.from(blockGraph.getLoadedBlocks());
-    blockNodes.sort((a, b) => a.id.localeCompare(b.id));
+    blockNodes.sort((a, b) => a._id.localeCompare(b._id));
 
     //
     // To fix this I need to make it walk backwards from the head blocks.
@@ -25,11 +25,11 @@ export function writeBlockGraph<DataT = any>(blockGraph: BlockGraph<DataT>, outp
 
         if (prevBlocks && prevBlocks.length > 0) {
             for (const prevBlock of prevBlocks) {
-                mermaid += `${prevBlock.substring(0, 5)} --> ${block.id.substring(0, 5)};\n`;
+                mermaid += `${prevBlock.substring(0, 5)} --> ${block._id.substring(0, 5)};\n`;
             }
         }
         else {
-            mermaid += `${block.id.substring(0, 5)};\n`;
+            mermaid += `${block._id.substring(0, 5)};\n`;
         }
     }
 

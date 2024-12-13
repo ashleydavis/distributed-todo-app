@@ -1,6 +1,6 @@
 import { IBlock, IBlockDetails } from "../lib/block-graph";
 import { DatabaseUpdate, IDatabaseUpdate } from "../lib/database-update";
-import { doCheckIn, receiveBlocks } from "../lib/sync";
+import { doCheckIn, receiveBlocks } from "../lib/sync-core";
 
 describe("sync", () => {
 
@@ -41,12 +41,12 @@ describe("sync", () => {
     test("push blocks to waiting nodes", async () => {
 
         const block1 = {
-            id: "1234",
+            _id: "1234",
             prevBlocks: [],
             data: [],
         };
         const block2 = {
-            id: "5678",
+            _id: "5678",
             prevBlocks: [],
             data: [],
         };
@@ -97,12 +97,12 @@ describe("sync", () => {
     test("push blocks to waiting nodes", async () => {
 
         const block1 = {
-            id: "1234",
+            _id: "1234",
             prevBlocks: [],
             data: [],
         };
         const block2 = {
-            id: "5678",
+            _id: "5678",
             prevBlocks: [],
             data: [],
         };
@@ -235,7 +235,7 @@ describe("sync", () => {
         };
         const pendingBlockMap = new Map<string, IBlock<DatabaseUpdate[]>>();
         pendingBlockMap.set("a-block", {
-            id: "a-block",
+            _id: "a-block",
             prevBlocks: [ "1234", "5678" ],
             data: [],
         });
@@ -270,7 +270,7 @@ describe("sync", () => {
             getHeadBlocks() {
                 return [];
             },
-            integrateBlock: mockIntegrateBlock,            
+            integrateBlock: mockIntegrateBlock,
         };
         const mockRecieveUpdates = jest.fn();
         const pendingBlockMap = new Map<string, IBlock<DatabaseUpdate[]>>();
@@ -309,7 +309,7 @@ describe("sync", () => {
             hasBlock() {
                 return false;
             },
-            integrateBlock: mockIntegrateBlock,            
+            integrateBlock: mockIntegrateBlock,
         };
         const mockRecieveUpdates = jest.fn();
         const pendingBlockMap = new Map<string, IBlock<DatabaseUpdate[]>>();
@@ -347,7 +347,7 @@ describe("sync", () => {
             hasBlock() {
                 return true;
             },
-            integrateBlock: mockIntegrateBlock,            
+            integrateBlock: mockIntegrateBlock,
         };
         const mockRecieveUpdates = jest.fn();
         const pendingBlockMap = new Map<string, IBlock<DatabaseUpdate[]>>();
@@ -373,7 +373,7 @@ describe("sync", () => {
         const incomingBlock: any = {
             id: "1234",
             prevBlocks: [],
-            data: [ 
+            data: [
                 {
                     timestamp: 22,
                 },
@@ -394,7 +394,7 @@ describe("sync", () => {
             getHeadBlocks() {
                 return [];
             },
-            integrateBlock: mockIntegrateBlock,            
+            integrateBlock: mockIntegrateBlock,
         };
         const mockRecieveUpdates = jest.fn();
         const pendingBlockMap = new Map<string, IBlock<DatabaseUpdate[]>>();
@@ -409,7 +409,7 @@ describe("sync", () => {
         );
 
         expect(mockIntegrateBlock).toHaveBeenCalledWith(incomingBlock);
-        expect(mockRecieveUpdates).toHaveBeenCalledWith([ 
+        expect(mockRecieveUpdates).toHaveBeenCalledWith([
             {
                 timestamp: 5,
             },

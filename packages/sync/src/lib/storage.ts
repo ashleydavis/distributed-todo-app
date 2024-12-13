@@ -1,3 +1,5 @@
+import { IDocument } from "./document";
+
 //
 // An abstracted storage mechanism for the database.
 //
@@ -6,17 +8,17 @@ export interface IStorage {
     //
     // Gets all records in a collection.
     //
-    getAllRecords<RecordT>(collectionName: string): Promise<RecordT[]>;
+    getAllRecords<RecordT extends IDocument>(collectionName: string): Promise<RecordT[]>;
 
     //
     // Gets one record from the database.
     //
-    getRecord<RecordT>(collectionName: string, id: string): Promise<RecordT | undefined>;
+    getRecord<RecordT extends IDocument>(collectionName: string, id: string): Promise<RecordT | undefined>;
 
     //
     // Stores a record in the database.
     //
-    storeRecord(collectionName: string, record: any): Promise<void>;
+    storeRecord<RecordT extends IDocument>(collectionName: string, record: RecordT): Promise<void>;
 
     //
     // Deletes a record from the database.

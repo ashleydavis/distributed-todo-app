@@ -5,7 +5,7 @@ import { DatabaseContextProvider } from "./lib/db-context";
 
 const root = createRoot(document.getElementById("root")!);
 root.render(
-    <DatabaseContextProvider>
+    <DatabaseContextProvider databaseName="tasks" >
         <App />
     </DatabaseContextProvider>
 );

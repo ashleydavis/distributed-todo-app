@@ -8,7 +8,7 @@ export interface IBlockDetails {
     //
     // The id of the block.
     //
-    id: string;
+    _id: string;
 
     //
     // The ids of the previous blocks.
@@ -51,7 +51,7 @@ export class BlockGraph<DataT> {
     // Loads the head blocks from storage.
     //
     async loadHeadBlocks(): Promise<void> {
-        const headBlocks = await this.storage.getRecord<{ headBlockIds: string[] }>("block-graphs", "head-blocks");
+        const headBlocks = await this.storage.getRecord<{ _id: string, headBlockIds: string[] }>("block-graphs", "head-blocks");
         if (headBlocks) {
             this.headBlockIds = headBlocks.headBlockIds;
             for (const id of this.headBlockIds) {
@@ -135,16 +135,16 @@ export class BlockGraph<DataT> {
     // Commits a new block to the graph.
     //
     async commitBlock(data: DataT): Promise<IBlock<DataT>> {
-        const id = uuid();
+        const _id = uuid();
         const prevBlocks = this.getHeadBlockIds();
         const block: IBlock<DataT> = {
-            id,
+            _id,
             prevBlocks,
             data,
         };
 
-        this.headBlockIds = [ id ];
-        this.blockMap.set(block.id, block);
+        this.headBlockIds = [ _id ];
+        this.blockMap.set(_id, block);
 
         await Promise.all([
             this.storeBlock(block),
@@ -159,20 +159,20 @@ export class BlockGraph<DataT> {
     //
     async integrateBlock(block: IBlock<DataT>): Promise<void> {
 
-        if (this.blockMap.has(block.id)) {
-            console.log(`Block ${block.id} already exists in the graph.`);
+        if (this.blockMap.has(block._id)) {
+            console.log(`Block ${block._id} already exists in the graph.`);
             return;
         }
 
-        this.blockMap.set(block.id, block);
+        this.blockMap.set(block._id, block);
 
         const headNodes = new Set<string>(this.getHeadBlockIds());
 
         for (const prevBlockId of block.prevBlocks) {
             headNodes.delete(prevBlockId);
         }
-        
-        headNodes.add(block.id);
+
+        headNodes.add(block._id);
 
         this.headBlockIds = Array.from(headNodes);
 
@@ -193,14 +193,24 @@ export class BlockGraph<DataT> {
     // Write the block to storage.
     //
     private async storeBlock(block: IBlock<DataT>): Promise<void> {
-        await this.storage.storeRecord("blocks", block);
+        try {
+            await this.storage.storeRecord("blocks", block);
+        }
+        catch (error: any) {
+            console.error(`Error storing block ${block._id}: ${error.stack}`);
+        }
     }
 
     //
     // Write head is to storage.
     //
     private async storeHeadBlocks(): Promise<void> {
-        //todo: Might be good if there was a uuid for a graph. Each graph can be for a particular set!
-        await this.storage.storeRecord("block-graphs", { id: "head-blocks", headBlockIds: this.headBlockIds });
+        try {
+            //todo: Might be good if there was a uuid for a graph. Each graph can be for a particular set!
+            await this.storage.storeRecord("block-graphs", { _id: "head-blocks", headBlockIds: this.headBlockIds });
+        }
+        catch (error: any) {
+            console.error(`Error storing head blocks: ${error.stack}`);
+        }
     }
 }

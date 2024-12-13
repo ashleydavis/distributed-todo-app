@@ -5,5 +5,5 @@ export interface IDocument {
   //
   // The unique ID of the record.
   //
-  id: string;
+  _id: string;
 }

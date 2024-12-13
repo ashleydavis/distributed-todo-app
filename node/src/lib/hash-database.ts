@@ -11,7 +11,7 @@ export async function hashDatabase(database: Database): Promise<string> {
 
   for (const collection of database.collections) {
       const records = (await collection.getAll()).slice();
-      records.sort((a, b) => a.id.localeCompare(b.id));
+      records.sort((a, b) => a._id.localeCompare(b._id));
       recordMap[collection.name()] = records;
   }
 

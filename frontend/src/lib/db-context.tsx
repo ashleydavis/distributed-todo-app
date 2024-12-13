@@ -1,6 +1,6 @@
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { SyncEngine, DatabaseUpdate, Database, ICollection, IDocument } from "sync";
-import { IIndexeddbDatabaseConfiguration, openDatabase, deleteRecord as _deleteRecord } from "./indexeddb";
+import { IIndexeddbDatabaseConfiguration, openDatabase, deleteRecord as _deleteRecord, IIndexeddbCollectionConfig } from "./indexeddb";
 import { v4 as uuid } from "uuid";
 import { IndexeddbStorage } from "./indexeddb-storage";
 
@@ -35,54 +35,23 @@ export interface IDatabaseHook {
     changeUser: (userId: string) => void;
 }
 
-//
-// Configuration for the indexeddb.
-//
-const tasksDatabaseConfiguration: IIndexeddbDatabaseConfiguration = {
-    collections: [
-        {
-            name: "tasks",
-            idField: "id",
-        },
-        {
-            name: "projects",
-            idField: "id",
-        },
-    ],
-    versionNumber: 1,
-}
-
-//
-// Configuration for the indexeddb.
-//
-const blockGraphDatabaseConfiguration: IIndexeddbDatabaseConfiguration = {
-    collections: [
-        {
-            name: "blocks",
-            idField: "id",
-        },
-        {
-            name: "block-graphs",
-            idField: "id",
-        }
-    ],
-    versionNumber: 1,
-}
-
-
 const DatabaseContext = createContext<IDatabaseHook | undefined>(undefined);
 
 export interface IProps {
+    //
+    // The name of the database to open.
+    //
+    databaseName: string;
+
     children: ReactNode | ReactNode[];
 }
 
-export function DatabaseContextProvider({ children }: IProps) {
+export function DatabaseContextProvider({ databaseName, children }: IProps) {
 
     //
-    // The indexed db databases.
+    // Reference to database storage.
     //
-    const tasksDbRef = useRef<IDBDatabase | undefined>(undefined);
-    const blockGraphDbRef = useRef<IDBDatabase | undefined>(undefined);
+    const storageRef = useRef<IndexeddbStorage | undefined>(undefined);
 
     //
     // Reference to the database.
@@ -139,20 +108,15 @@ export function DatabaseContextProvider({ children }: IProps) {
 
         console.log(`Starting the sync engine for user ${userId} and node ${nodeId}`);
 
-        Promise.all([
-                openDatabase(`tasks-db-${userId}`, tasksDatabaseConfiguration),
-                openDatabase(`block-graph-${userId}`, blockGraphDatabaseConfiguration)
-            ])
-            .then(([tasksDb, blockGraphDb]) => {
-                const database = new Database(new IndexeddbStorage(tasksDb), onOutgoingUpdates);
-                tasksDbRef.current = tasksDb;
-                blockGraphDbRef.current = blockGraphDb;
-                databaseRef.current = database;
-                setLoaded(true);
+        const userDatabaseName = `${databaseName}-${userId}`;
 
-                syncEngineRef.current = new SyncEngine(nodeId, userId, API_BASE_URL, onIncomingUpdates, new IndexeddbStorage(blockGraphDb), 1000);
-                return syncEngineRef.current.startSync();
-            })
+        storageRef.current = new IndexeddbStorage(userDatabaseName);
+        const database = new Database(storageRef.current, onOutgoingUpdates);
+        databaseRef.current = database;
+        setLoaded(true);
+
+        syncEngineRef.current = new SyncEngine(nodeId, userId, API_BASE_URL, onIncomingUpdates, storageRef.current, 1000);
+        syncEngineRef.current.startSync()
             .catch(error => {
                 console.error(`Failed to open database and start synchronization:`);
                 console.error(error.stack || error.message || error);
@@ -170,14 +134,9 @@ export function DatabaseContextProvider({ children }: IProps) {
                 syncEngineRef.current = undefined;
             }
 
-            if (tasksDbRef.current) {
-                tasksDbRef.current.close();
-                tasksDbRef.current = undefined;
-            }
-
-            if (blockGraphDbRef.current) {
-                blockGraphDbRef.current.close();
-                blockGraphDbRef.current = undefined;
+            if (storageRef.current) {
+                storageRef.current.close();
+                storageRef.current = undefined;
             }
 
             databaseRef.current = undefined;
@@ -248,7 +207,7 @@ export function useCollection<T extends IDocument>(collectionName: string): ICol
                 }
                 return database.collection<T>(collectionName).deleteOne(id);
             },
-            upsertOne: (id: string, record: Omit<T, "id">) => {
+            upsertOne: (id: string, record: Omit<T, "_id">) => {
                 if (!database) {
                     throw new Error(`Database is not open.`);
                 }
@@ -317,13 +276,13 @@ export function useQuery<T extends IDocument>(collectionName: string, options?: 
             //
             for (const update of updates) {
                 if (update.type === "field") {
-                    let documentIndex = working.findIndex(document => document.id === update.recordId); //todo: Could be a fast lookup.
+                    let documentIndex = working.findIndex(document => document._id === update.recordId); //todo: Could be a fast lookup.
                     if (documentIndex === -1) {                   
                         //
                         // Creates the document.
                         //
                         const record: any = {
-                            id: update.recordId,
+                            _id: update.recordId,
                             [update.field]: update.value,
                         };
                         working.push(record);
@@ -335,7 +294,7 @@ export function useQuery<T extends IDocument>(collectionName: string, options?: 
                         (working[documentIndex] as any)[update.field] = update.value;
                     }                }
                 else if (update.type === "delete") {
-                    const deleteIndex = working.findIndex(document => document.id === update.recordId); //todo: Could be a fast lookup.
+                    const deleteIndex = working.findIndex(document => document._id === update.recordId); //todo: Could be a fast lookup.
                     if (deleteIndex !== -1) {
                         working.splice(deleteIndex, 1);
                     }

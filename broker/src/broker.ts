@@ -252,7 +252,7 @@ app.post("/pull-blocks", (req, res) => {
 
             for (const block of data.blocks) {
                 // Remove the request because we are fullfilling it.
-                userDetails.blockRequests[nodeId].delete(block.id);
+                userDetails.blockRequests[nodeId].delete(block._id);
             }
 
             delete userDetails.pullBlockRequests[nodeId];
@@ -285,7 +285,7 @@ app.post("/push-blocks", (req, res) => {
 
     let userDetails = getUserDetails(userId);
     if (userDetails.pullBlockRequests[toNodeId]) {
-        console.log(`Pushing blocks from ${fromNodeId} to ${toNodeId}: ${req.body.blocks.map((b: IBlock<any>) => b.id).join(", ")}`);
+        console.log(`Pushing blocks from ${fromNodeId} to ${toNodeId}: ${req.body.blocks.map((b: IBlock<any>) => b._id).join(", ")}`);
         userDetails.pullBlockRequests[toNodeId].callback(req.body);
     }
     else {

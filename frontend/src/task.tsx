@@ -19,12 +19,12 @@ export function Task({ task, editingId, setEditingId }: ITaskProps) {
     const { documents: projects } = useQuery<IProject>("projects");
 
     async function updateTask(update: Omit<Partial<ITask>, "_id">) {
-        await tasksCollection.upsertOne(task.id, update);
+        await tasksCollection.upsertOne(task._id, update);
         setEditingId(null);
     }
 
     async function onToggleCompleted() {
-        await tasksCollection.upsertOne(task.id, { completed: !task.completed });
+        await tasksCollection.upsertOne(task._id, { completed: !task.completed });
     }
 
     function onTextChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -48,7 +48,7 @@ export function Task({ task, editingId, setEditingId }: ITaskProps) {
                 checked={task.completed}
                 onChange={onToggleCompleted}
             />
-            {editingId === task.id ? (
+            {editingId === task._id ? (
                 <input
                     className="edit-input"
                     type="text"
@@ -59,7 +59,7 @@ export function Task({ task, editingId, setEditingId }: ITaskProps) {
                     />
             ) : (
                 <span
-                    onClick={() => setEditingId(task.id)}
+                    onClick={() => setEditingId(task._id)}
                     className="task-text"
                     >
                     {task.description}
@@ -88,7 +88,7 @@ export function Task({ task, editingId, setEditingId }: ITaskProps) {
                 <option value="no-project">None</option>
                 {projects.map(project => {
                     return (
-                        <option key={project.id} value={project.id}>
+                        <option key={project._id} value={project._id}>
                             {project.name}
                         </option>
                     );
@@ -102,7 +102,7 @@ export function Task({ task, editingId, setEditingId }: ITaskProps) {
 
             <button
                 className="delete-button"
-                onClick={() => tasksCollection.deleteOne(task.id)}
+                onClick={() => tasksCollection.deleteOne(task._id)}
                 >
                 Delete
             </button>

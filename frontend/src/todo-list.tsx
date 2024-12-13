@@ -20,7 +20,7 @@ export function TodoList() {
         <ul className="todo-list">
             {tasks.map(task => (
                 <Task
-                    key={task.id}
+                    key={task._id}
                     task={task}
                     editingId={editingId}
                     setEditingId={setEditingId}

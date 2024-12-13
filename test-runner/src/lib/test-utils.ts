@@ -142,7 +142,7 @@ export async function waitDone(testRunId: string, baseUrl: string, brokerPort: n
 
             // Write ony the head hashes to a separate file.
             const headHashes = Object.fromEntries(Object.entries(data).map(([nodeId, nodeDetails]) => {
-                const hashes = nodeDetails.headBlocks.map(block => block.id);
+                const hashes = nodeDetails.headBlocks.map(block => block._id);
                 hashes.sort();
                 return [
                     nodeId,
@@ -186,7 +186,7 @@ export async function waitDone(testRunId: string, baseUrl: string, brokerPort: n
 
                         // Write ony the head hashes to a separate file.
                         const headHashes = Object.fromEntries(Object.entries(data).map(([nodeId, nodeDetails]) => {
-                            const hashes = nodeDetails.headBlocks.map(block => block.id);
+                            const hashes = nodeDetails.headBlocks.map(block => block._id);
                             hashes.sort();
                             return [
                                 nodeId,
@@ -202,7 +202,7 @@ export async function waitDone(testRunId: string, baseUrl: string, brokerPort: n
                         // Check if all nodes have the same hashes.
                         const nodeIds = Object.keys(data);
                         const nodeHashes = nodeIds.map(nodeId => {
-                            const hashes = data[nodeId].headBlocks.map(block => block.id);
+                            const hashes = data[nodeId].headBlocks.map(block => block._id);
                             hashes.sort();
                             return {
                                 nodeId,
@@ -278,7 +278,7 @@ export function expectNodesInSync(testRunId: string, expectedNumNodes: number, n
     // Check that all nodes have the same hashes.
     //
     const nodeHashes = nodeIds.map(nodeId => {
-        const hashes = nodeDetails[nodeId].headBlocks.map(block => block.id);
+        const hashes = nodeDetails[nodeId].headBlocks.map(block => block._id);
         hashes.sort();
         return {
             nodeId,

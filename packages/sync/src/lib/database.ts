@@ -3,17 +3,29 @@ import { DatabaseUpdate } from './database-update';
 import { IDocument } from './document';
 import { IStorage } from './storage';
 
-export class Database {
+export interface IDatabase {
+    //
+    // Gets a collection from the database.
+    //
+    collection<RecordT extends IDocument>(collectionName: string): ICollection<RecordT>;
+
+    //
+    // Apply updates to the database.
+    //
+    applyIncomingUpdates(updates: DatabaseUpdate[]): Promise<void>;
+}
+
+export class Database implements IDatabase {
 
     //
     // Database collections.
     //
-    private collectionMap = new Map<string, Collection<any>>();
+    private collectionMap = new Map<string, Collection<IDocument>>();
 
     //
     // The collections in the database.
     //
-    readonly collections: Collection<any>[] = [];
+    readonly collections: Collection<IDocument>[] = [];
 
     constructor(private storage: IStorage, private onOutgoingUpdates: OnOutgoingUpdatesFn) {
     }
@@ -37,7 +49,7 @@ export class Database {
             this.collections.push(collection);
         }
 
-        return collection;
+        return collection as Collection<RecordT>;
     }
 
     //

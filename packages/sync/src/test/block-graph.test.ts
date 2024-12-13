@@ -43,16 +43,16 @@ describe("BlockGraph", () => {
     test("there is one head blocks for a single block", async () => {
         const blockGraph = new BlockGraph<any>(nullStorage);
         const block = await blockGraph.commitBlock("data");
-        expect(blockGraph.getHeadBlockIds()).toEqual([block.id])
+        expect(blockGraph.getHeadBlockIds()).toEqual([block._id])
     });
 
     test("can add first block", async () => {
         const blockGraph = new BlockGraph<any>(nullStorage);
         const block = await blockGraph.commitBlock("data");
         expect(blockGraph.getHeadBlockIds()).toEqual([
-            block.id,
+            block._id,
         ]);
-        expect(await blockGraph.hasBlock(block.id)).toBe(true);
+        expect(await blockGraph.hasBlock(block._id)).toBe(true);
     });
 
     test("can add second block", async () => {
@@ -60,7 +60,7 @@ describe("BlockGraph", () => {
         const block1 = await blockGraph.commitBlock("1");
         const block2 = await blockGraph.commitBlock("2");
         expect(blockGraph.getHeadBlockIds()).toEqual([
-            block2.id
+            block2._id
         ]);
     });
 
@@ -118,7 +118,7 @@ describe("BlockGraph", () => {
         const block3 = await blockGraph1.commitBlock("3");
 
         expect(blockGraph1.getHeadBlockIds()).toEqual([
-            block3.id
+            block3._id
         ]);
     });
 
