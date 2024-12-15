@@ -3,7 +3,7 @@
 //
 export interface IDocument {
   //
-  // The unique ID of the record.
+  // The unique ID of the document.
   //
   _id: string;
 }

@@ -44,18 +44,18 @@ export class BlockGraph<DataT> {
     //
     private headBlockIds: string[] = [];
 
-    constructor(private storage: IStorage) {        
+    constructor(private storage: IStorage) {
     }
 
     //
     // Loads the head blocks from storage.
     //
     async loadHeadBlocks(): Promise<void> {
-        const headBlocks = await this.storage.getRecord<{ _id: string, headBlockIds: string[] }>("block-graphs", "head-blocks");
+        const headBlocks = await this.storage.getDocument<{ _id: string, headBlockIds: string[] }>("block-graphs", "head-blocks");
         if (headBlocks) {
             this.headBlockIds = headBlocks.headBlockIds;
             for (const id of this.headBlockIds) {
-                const block = await this.storage.getRecord<IBlock<DataT>>("blocks", id);
+                const block = await this.storage.getDocument<IBlock<DataT>>("blocks", id);
                 if (block) {
                     this.blockMap.set(id, block);
                 }
@@ -103,7 +103,7 @@ export class BlockGraph<DataT> {
             return true;
         }
 
-        const block = await this.storage.getRecord<IBlock<DataT>>("blocks", id);
+        const block = await this.storage.getDocument<IBlock<DataT>>("blocks", id);
         if (block) {
             this.blockMap.set(id, block);
             return true;
@@ -121,7 +121,7 @@ export class BlockGraph<DataT> {
             return this.blockMap.get(id);
         }
 
-        const block = await this.storage.getRecord<IBlock<DataT>>("blocks", id);
+        const block = await this.storage.getDocument<IBlock<DataT>>("blocks", id);
         if (block) {
             this.blockMap.set(id, block);
             return block;
@@ -194,7 +194,7 @@ export class BlockGraph<DataT> {
     //
     private async storeBlock(block: IBlock<DataT>): Promise<void> {
         try {
-            await this.storage.storeRecord("blocks", block);
+            await this.storage.storeDocument("blocks", block);
         }
         catch (error: any) {
             console.error(`Error storing block ${block._id}: ${error.stack}`);
@@ -207,7 +207,7 @@ export class BlockGraph<DataT> {
     private async storeHeadBlocks(): Promise<void> {
         try {
             //todo: Might be good if there was a uuid for a graph. Each graph can be for a particular set!
-            await this.storage.storeRecord("block-graphs", { _id: "head-blocks", headBlockIds: this.headBlockIds });
+            await this.storage.storeDocument("block-graphs", { _id: "head-blocks", headBlockIds: this.headBlockIds });
         }
         catch (error: any) {
             console.error(`Error storing head blocks: ${error.stack}`);

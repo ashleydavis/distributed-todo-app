@@ -80,9 +80,11 @@ export async function doCheckIn(
     //
     // Prepare the head blocks for the check in.
     //
+    // NOTE: Don't want to include block data.
+    //
     const headBlocks = blockGraph.getHeadBlocks().map(block => {
         return {
-            id: block.id,
+            _id: block._id,
             prevBlocks: block.prevBlocks,
         };
     });
@@ -140,12 +142,12 @@ export async function doCheckIn(
         }
 
         for (const block of nodeDetails.headBlocks) {
-            if (pendingBlockMap.has(block.id)) {
+            if (pendingBlockMap.has(block._id)) {
                 // We have it pending.
                 continue;
             }
 
-            if (blockGraph.hasBlockInMemory(block.id)) {
+            if (blockGraph.hasBlockInMemory(block._id)) {
                 // We have it.
                 continue;
             }
@@ -153,7 +155,7 @@ export async function doCheckIn(
             //
             // We don't have it and it's not already in our pending list.
             //
-            requiredHashes.add(block.id);
+            requiredHashes.add(block._id);
         }
     }
 
@@ -211,7 +213,7 @@ export async function receiveBlocks(
     //
     const { incomingBlocks } = await pullBlocks();
     for (const block of incomingBlocks) {
-        pendingBlockMap.set(block.id, block);
+        pendingBlockMap.set(block._id, block);
     }
 
     //
@@ -236,7 +238,7 @@ export async function receiveBlocks(
 
             if (havePriors) {
                 await integrateBlock(pendingBlock, blockGraph, onIncomingUpdates);
-                pendingBlockMap.delete(pendingBlock.id);
+                pendingBlockMap.delete(pendingBlock._id);
                 changed = true;
             }
         }

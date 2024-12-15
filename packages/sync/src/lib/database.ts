@@ -7,12 +7,7 @@ export interface IDatabase {
     //
     // Gets a collection from the database.
     //
-    collection<RecordT extends IDocument>(collectionName: string): ICollection<RecordT>;
-
-    //
-    // Apply updates to the database.
-    //
-    applyIncomingUpdates(updates: DatabaseUpdate[]): Promise<void>;
+    collection<DocumentT extends IDocument>(collectionName: string): ICollection<DocumentT>;
 }
 
 export class Database implements IDatabase {
@@ -33,14 +28,14 @@ export class Database implements IDatabase {
     //
     // Gets a collection from the database.
     //
-    collection<RecordT extends IDocument>(collectionName: string): ICollection<RecordT> {
-        return this._collection<RecordT>(collectionName);
+    collection<DocumentT extends IDocument>(collectionName: string): ICollection<DocumentT> {
+        return this._collection<DocumentT>(collectionName);
     }
 
     //
     // Internal version of collection that returns the full collection type.
     //
-    private _collection<RecordT extends IDocument>(collectionName: string): Collection<RecordT> {
+    private _collection<DocumentT extends IDocument>(collectionName: string): Collection<DocumentT> {
         let collection = this.collectionMap.get(collectionName);
         if (!collection) {
             collection = new Collection(collectionName, this.storage, this.onOutgoingUpdates);
@@ -49,7 +44,7 @@ export class Database implements IDatabase {
             this.collections.push(collection);
         }
 
-        return collection as Collection<RecordT>;
+        return collection as Collection<DocumentT>;
     }
 
     //
@@ -62,10 +57,10 @@ export class Database implements IDatabase {
         //
         const collections = new Map<string, DatabaseUpdate[]>();
         for (const update of updates) {
-            let collectionUpdates = collections.get(update.collectionName);
+            let collectionUpdates = collections.get(update.collection);
             if (!collectionUpdates) {
                 collectionUpdates = [];
-                collections.set(update.collectionName, collectionUpdates);
+                collections.set(update.collection, collectionUpdates);
             }
 
             collectionUpdates.push(update);
@@ -76,11 +71,11 @@ export class Database implements IDatabase {
         //
         for (const [collectionName, collectionUpdates] of collections.entries()) {
             const collection = this._collection(collectionName);
-            collection.notifySubscriptions(collectionUpdates);
+            await collection.notifySubscriptions(collectionUpdates);
         }
 
         //
-        // Record updates into the datbase.
+        // Applies updates into the datbase.
         //
         for (const [collectionName, collectionUpdates] of collections.entries()) {
             const collection = this._collection(collectionName);

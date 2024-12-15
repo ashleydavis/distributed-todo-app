@@ -30,7 +30,7 @@ export interface IIndexeddbDatabaseConfiguration {
     //
     // The version number of the database.
     //
-    versionNumber: number;
+    versionNumber?: number;
 }
 
 //
@@ -75,37 +75,37 @@ function createObjectStores(dbOpenRequest: IDBOpenDBRequest, collections: IIndex
 }
 
 //
-// Stores a record in the database.
+// Stores a document in the database.
 //
-export function storeRecord<RecordT>(db: IDBDatabase, collectionName: string, record: RecordT): Promise<void> {
+export function storeDocument<DocumentT>(db: IDBDatabase, collectionName: string, document: DocumentT): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const transaction = db.transaction(collectionName, 'readwrite');
         const store = transaction.objectStore(collectionName);
-        const request = store.put(record);
+        const request = store.put(document);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => resolve();
     });
 }
 
 //
-// Gets a record from the database.
+// Gets a document from the database.
 //
-export function getRecord<RecordT>(db: IDBDatabase, collectionName: string, recordId: string): Promise<RecordT | undefined> {
-    return new Promise<RecordT>((resolve, reject) => {
+export function getDocument<DocumentT>(db: IDBDatabase, collectionName: string, documentId: string): Promise<DocumentT | undefined> {
+    return new Promise<DocumentT>((resolve, reject) => {
         const transaction = db.transaction(collectionName, 'readonly');
         const store = transaction.objectStore(collectionName);
-        const request = store.get(recordId);
+        const request = store.get(documentId);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => resolve(request.result);
     });
 }
 
 //
-// Gets the least recent record from the database.
+// Gets the least recent document from the database.
 // This relies on the ids being timestamps in reverse chronological order.
 //
-export function getLeastRecentRecord<RecordT>(db: IDBDatabase, collectionName: string): Promise<[string, RecordT] | undefined> {  
-    return new Promise<[string, RecordT] | undefined>((resolve, reject) => {
+export function getLeastRecentDocument<DocumentT>(db: IDBDatabase, collectionName: string): Promise<[string, DocumentT] | undefined> {
+    return new Promise<[string, DocumentT] | undefined>((resolve, reject) => {
         const transaction = db.transaction(collectionName, 'readonly');
         const store = transaction.objectStore(collectionName);
         const request = store.openCursor(null, 'prev');
@@ -114,7 +114,7 @@ export function getLeastRecentRecord<RecordT>(db: IDBDatabase, collectionName: s
             const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
             if (cursor) {
                 resolve([cursor.key as string, cursor.value]);
-            } 
+            }
             else {
                 resolve(undefined);
             }
@@ -123,62 +123,87 @@ export function getLeastRecentRecord<RecordT>(db: IDBDatabase, collectionName: s
 }
 
 //
-// Gets all record keys from the database.
+// Gets all document ids from the database.
 //
 export function getAllKeys(db: IDBDatabase, collectionName: string): Promise<string[]> {
     return new Promise<string[]>((resolve, reject) => {
         const transaction = db.transaction([collectionName], "readonly");
         const store = transaction.objectStore(collectionName);
-        const allRecordsRequest = store.getAllKeys(); 
+        const allRecordsRequest = store.getAllKeys();
         allRecordsRequest.onsuccess = () => resolve(Array.from(allRecordsRequest.result as string[]));
         allRecordsRequest.onerror = () => reject(allRecordsRequest.error);
     });
 }
 
 //
-// Gets all records from the database.
+// Gets all documents from the database.
 //
-export function getAllRecords<RecordT>(db: IDBDatabase, collectionName: string): Promise<RecordT[]> {
-    return new Promise<RecordT[]>((resolve, reject) => {
+export function getAllDocuments<DocumentT>(db: IDBDatabase, collectionName: string): Promise<DocumentT[]> {
+    return new Promise<DocumentT[]>((resolve, reject) => {
         const transaction = db.transaction([collectionName], "readonly");
         const store = transaction.objectStore(collectionName);
-        const allRecordsRequest = store.getAll(); 
+        const allRecordsRequest = store.getAll();
         allRecordsRequest.onsuccess = () => resolve(allRecordsRequest.result);
         allRecordsRequest.onerror = () => reject(allRecordsRequest.error);
     });
 }
 
 //
-// Gets all records matching the requested from the database.
+// Checks if an index exists.
 //
-export function getAllByIndex<RecordT>(db: IDBDatabase, collectionName: string, indexName: string, indexValue: any): Promise<RecordT[]> {
-    return new Promise<RecordT[]>((resolve, reject) => {
+export function hasIndex(db: IDBDatabase, collectionName: string, indexName: string): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
         const transaction = db.transaction([collectionName], "readonly");
         const store = transaction.objectStore(collectionName);
-        const index = store.index(indexName);
-        const request = index.getAll(indexValue); 
+        resolve(store.indexNames.contains(indexName));
+    });
+}
+
+//
+// Gets all documents that have a field with a matching value.
+//
+export function getMatchingDocuments<DocumentT>(db: IDBDatabase, collectionName: string, fieldName: string, fieldValue: any): Promise<DocumentT[]> {
+    return new Promise<DocumentT[]>((resolve, reject) => {
+        const transaction = db.transaction([collectionName], "readonly");
+        const store = transaction.objectStore(collectionName);
+        const index = store.index(fieldName);
+        const request = index.getAll(fieldValue);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
     });
 }
 
 //
-// Deletes a record.
+// Gets all documents matching the requested from the database.
 //
-export function deleteRecord(db: IDBDatabase, collectionName: string, recordId: string): Promise<void> {
+export function getAllByIndex<DocumentT>(db: IDBDatabase, collectionName: string, indexName: string, indexValue: any): Promise<DocumentT[]> {
+    return new Promise<DocumentT[]>((resolve, reject) => {
+        const transaction = db.transaction([collectionName], "readonly");
+        const store = transaction.objectStore(collectionName);
+        const index = store.index(indexName);
+        const request = index.getAll(indexValue);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+//
+// Deletes a document.
+//
+export function deleteDocument(db: IDBDatabase, collectionName: string, documentId: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const transaction = db.transaction(collectionName, 'readwrite');
         const store = transaction.objectStore(collectionName);
-        const request = store.delete(recordId);
+        const request = store.delete(documentId);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => resolve();
     });
 }
 
 //
-// Deletes all records in a collection.
+// Deletes all documents in a collection.
 //
-export function deleteAllRecords(db: IDBDatabase, collectionName: string): Promise<void> {
+export function deleteAllDocuments(db: IDBDatabase, collectionName: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const transaction = db.transaction(collectionName, 'readwrite');
         const store = transaction.objectStore(collectionName);
@@ -189,9 +214,9 @@ export function deleteAllRecords(db: IDBDatabase, collectionName: string): Promi
 }
 
 //
-// Gets the number of records in the collection.
+// Gets the number of documents in the collection.
 //
-export function getNumRecords(db: IDBDatabase, collectionName: string): Promise<number> {
+export function getNumDocuments(db: IDBDatabase, collectionName: string): Promise<number> {
     return new Promise<number>((resolve, reject) => {
         const transaction = db.transaction([collectionName], 'readonly');
         const store = transaction.objectStore(collectionName);

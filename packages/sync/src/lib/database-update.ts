@@ -15,12 +15,12 @@ export interface IDatabaseUpdate {
   //
   // The name of the collection being updated.
   //
-  collectionName: string;
+  collection: string;
 
   //
-  // The id of the record being updated.
+  // The id of the document being updated.
   //
-  recordId: string;
+  _id: string;
 }
 
 //
@@ -37,14 +37,14 @@ export interface IFieldUpdate extends IDatabaseUpdate {
   //
   field: string;
 
-  // 
+  //
   // The new value of the field.
   //
   value: any;
 }
 
 //
-// Represents a delete record update to the database.
+// Represents a delete document update to the database.
 //
 export interface IDeleteUpdate extends IDatabaseUpdate {
   //

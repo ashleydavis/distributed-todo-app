@@ -6,27 +6,32 @@ import { IDocument } from "./document";
 export interface IStorage {
 
     //
-    // Gets all records in a collection.
+    // Gets all documents in a collection.
     //
-    getAllRecords<RecordT extends IDocument>(collectionName: string): Promise<RecordT[]>;
+    getAllDocuments<DocumentT extends IDocument>(collectionName: string): Promise<DocumentT[]>;
 
     //
-    // Gets one record from the database.
+    // Gets all documents in a collection that have a field with a matching value.
     //
-    getRecord<RecordT extends IDocument>(collectionName: string, id: string): Promise<RecordT | undefined>;
+    getMatchingDocuments<DocumentT extends IDocument>(collectionName: string, fieldName: string, fieldValue: string): Promise<DocumentT[]>;
 
     //
-    // Stores a record in the database.
+    // Gets one document from the database.
     //
-    storeRecord<RecordT extends IDocument>(collectionName: string, record: RecordT): Promise<void>;
+    getDocument<DocumentT extends IDocument>(collectionName: string, id: string): Promise<DocumentT | undefined>;
 
     //
-    // Deletes a record from the database.
+    // Stores a document in the database.
     //
-    deleteRecord(collectionName: string, id: string): Promise<void>;
+    storeDocument<DocumentT extends IDocument>(collectionName: string, document: DocumentT): Promise<void>;
 
     //
-    // Deletes all records from a collection.
+    // Deletes a document from the database.
     //
-    deleteAllRecords(collectionName: string): Promise<void>;
+    deleteDocument(collectionName: string, id: string): Promise<void>;
+
+    //
+    // Deletes all documents from a collection.
+    //
+    deleteAllDocuments(collectionName: string): Promise<void>;
 }

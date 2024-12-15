@@ -15,38 +15,43 @@ export interface ISubscription {
 //
 // The type of a function that can be called when a subscription receives updates.
 //
-export type SubscriptionCallbackFn = (updates: DatabaseUpdate[]) => void;
+export type SubscriptionCallbackFn = (updates: DatabaseUpdate[]) => void | Promise<void>;
 
 //
 // The type of a function that can be called when outgoing updates are received.
 //
 export type OnOutgoingUpdatesFn = (updates: DatabaseUpdate[]) => Promise<void>;
 
-export interface ICollection<RecordT extends IDocument> {
+export interface ICollection<DocumentT extends IDocument> {
     //
     // Gets the name of the collection.
     //
     name(): string;
 
     //
-    // Gets all the records in the collection.
+    // Gets all the documents in the collection.
     //
-    getAll(): Promise<RecordT[]>;
+    getAll(): Promise<DocumentT[]>;
 
     //
-    // Gets a record by id.
-    
-    getOne(recordId: string): Promise<RecordT | undefined>;
+    // Gets all the documents in the collection that have a field with a matching value.
+    //
+    getMatching(fieldName: string, fieldValue: string): Promise<DocumentT[]>;
 
     //
-    // Upserts a record in the database.
-    //
-    upsertOne(recordId: string, update: Omit<Partial<RecordT>, "_id">): Promise<void>;
+    // Gets a document by id.
+
+    getOne(documentId: string): Promise<DocumentT | undefined>;
 
     //
-    // Deletes a record from the database.
+    // Upserts a document in the database.
     //
-    deleteOne(recordId: string): Promise<void>;
+    upsertOne(documentId: string, update: Omit<Partial<DocumentT>, "_id">): Promise<void>;
+
+    //
+    // Deletes a document from the database.
+    //
+    deleteOne(documentId: string): Promise<void>;
 
     //
     // Subscribes to updates on the collection.
@@ -55,9 +60,9 @@ export interface ICollection<RecordT extends IDocument> {
 }
 
 //
-// Represents a collection of records in the database.
+// Represents a collection of documents in the database.
 //
-export class Collection<RecordT extends IDocument> implements ICollection<RecordT> {
+export class Collection<DocumentT extends IDocument> implements ICollection<DocumentT> {
 
     //
     // The subscriptions to updates on this collection.
@@ -75,31 +80,38 @@ export class Collection<RecordT extends IDocument> implements ICollection<Record
     }
 
     //
-    // Gets all the records in the collection.
+    // Gets all the documents in the collection.
     //
-    getAll(): Promise<RecordT[]> {
-        return this.storage.getAllRecords<RecordT>(this.collectionName);
+    getAll(): Promise<DocumentT[]> {
+        return this.storage.getAllDocuments<DocumentT>(this.collectionName);
     }
 
     //
-    // Gets a record by id.
+    // Gets all the documents in the collection that have a field with a matching value.
     //
-    getOne(recordId: string): Promise<RecordT | undefined> {
-        return this.storage.getRecord<RecordT>(this.collectionName, recordId);
+    getMatching(fieldName: string, fieldValue: string): Promise<DocumentT[]> {
+        return this.storage.getMatchingDocuments<DocumentT>(this.collectionName, fieldName, fieldValue);
     }
 
     //
-    // Upserts a record in the database.
+    // Gets a document by id.
     //
-    async upsertOne(recordId: string, update: Omit<Partial<RecordT>, "_id">): Promise<void> {
+    getOne(documentId: string): Promise<DocumentT | undefined> {
+        return this.storage.getDocument<DocumentT>(this.collectionName, documentId);
+    }
+
+    //
+    // Upserts a document in the database.
+    //
+    async upsertOne(documentId: string, update: Omit<Partial<DocumentT>, "_id">): Promise<void> {
         const updates: DatabaseUpdate[] = Object.keys(update)
             .filter(field => field !== '_id')
             .map(field => {
                 return {
                     type: "field",
                     timestamp: Date.now(),
-                    collectionName: this.collectionName,
-                    recordId: recordId,
+                    collection: this.collectionName,
+                    _id: documentId,
                     field: field,
                     value: (update as any)[field],
                 };
@@ -108,7 +120,7 @@ export class Collection<RecordT extends IDocument> implements ICollection<Record
         //
         // Trigger subscriptions and update in-memory state before the database is updated.
         //
-        this.notifySubscriptions(updates); 
+        await this.notifySubscriptions(updates);
 
         //
         // Queue outgoing updates to other clients.
@@ -116,46 +128,46 @@ export class Collection<RecordT extends IDocument> implements ICollection<Record
         await this.onOutgoingUpdates(updates);
 
         //
-        // Update the record in the database.
+        // Update the document in the database.
         //
-        // This could be kind of expensive. Getting the record and saving it for every update.
+        // This could be kind of expensive. Getting the document and saving it for every update.
         // But the subscription system means the UI doesn't wait for it it to complete.
         //
         // todo: Maybe a document cache is all that's needed?
         //
-        let record = await this.storage.getRecord<RecordT>(this.collectionName, recordId); 
-        if (!record) {
-            record = {
-                _id: recordId,
+        let document = await this.storage.getDocument<DocumentT>(this.collectionName, documentId);
+        if (!document) {
+            document = {
+                _id: documentId,
                 ...update
-            } as RecordT;
+            } as DocumentT;
         }
         else {
-            record = {
-                ...record,
+            document = {
+                ...document,
                 ...update
             };
         }
 
-        await this.storage.storeRecord(this.collectionName, record);
+        await this.storage.storeDocument(this.collectionName, document);
     }
 
     //
-    // Deletes a record from the database.
+    // Deletes a document from the database.
     //
-    async deleteOne(recordId: string): Promise<void> {
+    async deleteOne(documentId: string): Promise<void> {
 
         const updates: DatabaseUpdate[] = [{
             type: "delete",
             timestamp: Date.now(),
-            collectionName: this.collectionName,
-            recordId: recordId,
+            collection: this.collectionName,
+            _id: documentId,
         }];
 
         //
         // Trigger subscriptions and update in-memory state before the database is updated.
         //
-        this.notifySubscriptions(updates); 
+        await this.notifySubscriptions(updates);
 
         //
         // Queue outgoing updates to other clients.
@@ -165,44 +177,44 @@ export class Collection<RecordT extends IDocument> implements ICollection<Record
         //
         // Delete from indexedd db.
         //
-        await this.storage.deleteRecord(this.collectionName, recordId);
+        await this.storage.deleteDocument(this.collectionName, documentId);
     }
 
     //
     // Apply updates to the in-memory data.
     //
     async applyIncomingUpdates(updates: DatabaseUpdate[]): Promise<void> { //todo: This can even be moved up to the database level. Can do a Promise.all for these ops.
-       
+
         for (const update of updates) {
-            if (update.collectionName !== this.collectionName) {
-                throw new Error(`Update collection name ${update.collectionName} does not match collection name ${this.collectionName}.`);
+            if (update.collection !== this.collectionName) {
+                throw new Error(`Update collection name ${update.collection} does not match collection name ${this.collectionName}.`);
             }
 
             if (update.type === 'field') {
                 //
-                // Update the record in the database.
+                // Update the document in the database.
                 //
-                let record = await this.storage.getRecord<RecordT>(this.collectionName, update.recordId);
-                if (!record) {
-                    record = {
-                        _id: update.recordId,
+                let document = await this.storage.getDocument<DocumentT>(this.collectionName, update._id);
+                if (!document) {
+                    document = {
+                        _id: update._id,
                         [update.field]: update.value,
                     } as any;
                 }
                 else {
-                    record = {
-                        ...record,
+                    document = {
+                        ...document,
                         [update.field]: update.value,
                     };
                 }
 
-                await this.storage.storeRecord(this.collectionName, record!);
+                await this.storage.storeDocument(this.collectionName, document!);
             }
-            else if (update.type === 'delete') {                
+            else if (update.type === 'delete') {
                 //
-                // Delete the record from the database.
+                // Delete the document from the database.
                 //
-                await this.storage.deleteRecord(this.collectionName, update.recordId);
+                await this.storage.deleteDocument(this.collectionName, update._id);
             }
         }
     }
@@ -210,9 +222,12 @@ export class Collection<RecordT extends IDocument> implements ICollection<Record
     //
     // Notify subscriptions of updates.
     //
-    notifySubscriptions(updates: DatabaseUpdate[]): void {
+    async notifySubscriptions(updates: DatabaseUpdate[]): Promise<void> {
         for (const subscription of this.subscriptions) {
-            subscription(updates);
+            const promise = subscription(updates);
+            if (promise) {
+                await promise;
+            }
         }
     }
 

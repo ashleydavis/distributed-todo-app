@@ -20,17 +20,17 @@ function expectEqualGraphs(blockGraph1: BlockGraph<any>, blockGraph2: BlockGraph
 }
 
 const nullStorage: any = {
-    async getAllRecords() {
+    async getAllDocuments() {
         return [];
     },
-    async getRecord() {
+    async getDocument() {
         return undefined;
     },
-    async storeRecord() {
+    async storeDocument() {
     },
-    async deleteRecord() {
+    async deleteDocument() {
     },
-    async deleteAllRecords() {
+    async deleteAllDocuments() {
     }
 };
 

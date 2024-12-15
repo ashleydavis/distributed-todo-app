@@ -6,7 +6,7 @@ import { IStorage, Database, DatabaseUpdate, SyncEngine } from "sync";
 import { v4 as uuid } from 'uuid';
 import { hashDatabase } from "./lib/hash-database";
 
-interface ITask { 
+interface ITask {
     _id: string;
     text: string;
     completed: boolean;
@@ -50,47 +50,54 @@ const brokerBaseUrl = `http://localhost:${brokerPort}`;
 fs.ensureDirSync(outputDir);
 
 class MemoryStorage implements IStorage {
-    records: any = [];
+    documents: any = [];
 
-    async getAllRecords(collectionName: string) {
-        return this.records[collectionName] || [];
+    async getAllDocuments(collectionName: string) {
+        return this.documents[collectionName] || [];
     }
 
-    async getRecord(collectionName: string, recordId: string) {
-        if (this.records[collectionName] === undefined) {
+    async getMatchingDocuments(collectionName: string, fieldName: string, fieldValue: string) {
+        if (this.documents[collectionName] === undefined) {
+            return [];
+        }
+        return this.documents[collectionName].filter((document: any) => document[fieldName] === fieldValue);
+    }
+
+    async getDocument(collectionName: string, documentId: string) {
+        if (this.documents[collectionName] === undefined) {
             return undefined;
         }
-        return this.records[collectionName].find((record: any) => record._id === recordId);
+        return this.documents[collectionName].find((document: any) => document._id === documentId);
     }
 
-    async storeRecord(collectionName: string, record: any) {
+    async storeDocument(collectionName: string, document: any) {
 
-        if (!this.records[collectionName]) {
-            this.records[collectionName] = [];
+        if (!this.documents[collectionName]) {
+            this.documents[collectionName] = [];
         }
 
-        const index = this.records[collectionName].findIndex((r: any) => r._id === record._id);
+        const index = this.documents[collectionName].findIndex((r: any) => r._id === document._id);
         if (index === -1) {
-            this.records[collectionName].push(record);
+            this.documents[collectionName].push(document);
         }
         else {
-            this.records[collectionName][index] = record;
+            this.documents[collectionName][index] = document;
         }
     }
 
-    async deleteRecord(collectionName: string, id: string) {
-        if (this.records[collectionName] === undefined) {
+    async deleteDocument(collectionName: string, id: string) {
+        if (this.documents[collectionName] === undefined) {
             return;
         }
 
-        const index = this.records[collectionName].findIndex((r: any) => r._id === id);
+        const index = this.documents[collectionName].findIndex((r: any) => r._id === id);
         if (index !== -1) {
-            this.records[collectionName].splice(index);
+            this.documents[collectionName].splice(index);
         }
     }
 
-    async deleteAllRecords(collectionName: string) {
-        this.records[collectionName] = [];
+    async deleteAllDocuments(collectionName: string) {
+        this.documents[collectionName] = [];
     }
 };
 
@@ -230,8 +237,8 @@ async function generateRandomUpdates(round: number): Promise<void> {
         console.log(`----- Node ${nodeId} is in generation tick ${round}`);
     }
 
-    const records = await database.collection<ITask>("tasks").getAll()
-    if (records.length > 0 && random.getRand() > 0.6) {
+    const document = await database.collection<ITask>("tasks").getAll()
+    if (document.length > 0 && random.getRand() > 0.6) {
         //
         // Makes an update to a todo.
         //
@@ -239,7 +246,7 @@ async function generateRandomUpdates(round: number): Promise<void> {
             //
             // Make a random todo completed.
             //
-            const randomItem = records[Math.floor(random.getRand() * records.length)];
+            const randomItem = document[Math.floor(random.getRand() * document.length)];
 
             numUpdates += 1;
 
@@ -249,7 +256,7 @@ async function generateRandomUpdates(round: number): Promise<void> {
             //
             // Update the text of a random todo.
             //
-            const randomItem = records[Math.floor(random.getRand() * records.length)];
+            const randomItem = document[Math.floor(random.getRand() * document.length)];
 
             numUpdates += 1;
 
@@ -262,11 +269,11 @@ async function generateRandomUpdates(round: number): Promise<void> {
         //
         // Makes a random todo and add it.
         //
-        const newRecordId = uuid();
+        const newDocumentId = uuid();
 
         numUpdates += 1;
 
-        await database.collection("tasks").upsertOne(newRecordId, {
+        await database.collection("tasks").upsertOne(newDocumentId, {
             text: `Random todo ${Math.floor(random.getRand() * 1000)}`,
             completed: false,
         });

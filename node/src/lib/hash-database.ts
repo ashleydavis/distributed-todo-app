@@ -7,15 +7,15 @@ import { Database } from "sync";
 // two databases are the same.
 //
 export async function hashDatabase(database: Database): Promise<string> {
-  const recordMap: any = {};
+  const documentMap: any = {};
 
   for (const collection of database.collections) {
-      const records = (await collection.getAll()).slice();
-      records.sort((a, b) => a._id.localeCompare(b._id));
-      recordMap[collection.name()] = records;
+      const documents = (await collection.getAll()).slice();
+      documents.sort((a, b) => a._id.localeCompare(b._id));
+      documentMap[collection.name()] = documents;
   }
 
   return crypto.createHash('sha256')
-      .update(jsonStableStringify(recordMap))
+      .update(jsonStableStringify(documentMap))
       .digest('hex');
 }
